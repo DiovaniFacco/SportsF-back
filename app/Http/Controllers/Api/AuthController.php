@@ -65,6 +65,36 @@ class AuthController extends Controller
         ]);
     }
 
+    public function googleAuth(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'email' => ['required', 'email'],
+            'name' => ['required', 'string', 'max:255'],
+            'google_id' => ['nullable', 'string'],
+            'avatar' => ['nullable', 'string'],
+        ]);
+
+        $user = User::where('email', $validated['email'])->first();
+
+        if (!$user) {
+            $user = User::create([
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'password' => Hash::make(\Illuminate\Support\Str::random(32)),
+                'role' => User::ROLE_CLIENTE,
+            ]);
+        }
+
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        return response()->json([
+            'message' => 'Autenticação Google realizada com sucesso',
+            'user' => $user,
+            'access_token' => $token,
+            'token_type' => 'Bearer',
+        ]);
+    }
+
     public function me(Request $request): JsonResponse
     {
         return response()->json([

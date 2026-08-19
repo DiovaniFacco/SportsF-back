@@ -22,6 +22,7 @@ Route::prefix('v1')->group(function () {
     // Authentication Public Routes
     Route::post('/auth/register', [AuthController::class, 'register']);
     Route::post('/auth/login', [AuthController::class, 'login']);
+    Route::post('/auth/google', [AuthController::class, 'googleAuth']);
 
     // Public Categories & Metadata Routes
     Route::get('/sports', [SportController::class, 'index']);
