@@ -1,0 +1,114 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\Court;
+use App\Models\Venue;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+
+class CourtController extends Controller
+{
+    public function index(Venue $venue): JsonResponse
+    {
+        return response()->json([
+            'courts' => $venue->courts()->with(['sports', 'sport', 'operatingHours'])->get(),
+        ]);
+    }
+
+    public function store(Request $request, Venue $venue): JsonResponse
+    {
+        $user = $request->user();
+        if (!$user->isAdmin() && $venue->user_id !== $user->id) {
+            return response()->json(['message' => 'Você não tem permissão para adicionar quadras neste espaço.'], 403);
+        }
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'type' => ['nullable', 'string', 'max:100'],
+            'sport_id' => ['nullable', 'exists:sports,id'],
+            'sport_ids' => ['nullable', 'array'],
+            'sport_ids.*' => ['exists:sports,id'],
+            'hourly_rate' => ['required', 'numeric', 'min:0'],
+            'surface' => ['nullable', 'string', 'max:150'],
+            'capacity' => ['nullable', 'string', 'max:100'],
+            'is_covered' => ['nullable', 'boolean'],
+            'min_notice_hours' => ['nullable', 'integer', 'min:0'],
+            'max_advance_days' => ['nullable', 'integer', 'min:1'],
+            'max_active_bookings_per_user' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        $sportIds = $validated['sport_ids'] ?? [];
+        unset($validated['sport_ids']);
+
+        $court = $venue->courts()->create($validated);
+
+        if (!empty($sportIds)) {
+            $court->sports()->sync($sportIds);
+        } elseif ($court->sport_id) {
+            $court->sports()->sync([$court->sport_id]);
+        }
+
+        return response()->json([
+            'message' => 'Quadra criada com sucesso',
+            'court' => $court->load(['sports', 'sport']),
+        ], 201);
+    }
+
+    public function show(Court $court): JsonResponse
+    {
+        return response()->json([
+            'court' => $court->load(['venue', 'sports', 'sport', 'operatingHours', 'pricingRules', 'specialPrices', 'blockouts']),
+        ]);
+    }
+
+    public function update(Request $request, Court $court): JsonResponse
+    {
+        $user = $request->user();
+        if (!$user->isAdmin() && $court->venue->user_id !== $user->id) {
+            return response()->json(['message' => 'Você não tem permissão para editar esta quadra.'], 403);
+        }
+
+        $validated = $request->validate([
+            'name' => ['sometimes', 'required', 'string', 'max:255'],
+            'type' => ['nullable', 'string', 'max:100'],
+            'sport_id' => ['nullable', 'exists:sports,id'],
+            'sport_ids' => ['nullable', 'array'],
+            'sport_ids.*' => ['exists:sports,id'],
+            'hourly_rate' => ['sometimes', 'required', 'numeric', 'min:0'],
+            'surface' => ['nullable', 'string', 'max:150'],
+            'capacity' => ['nullable', 'string', 'max:100'],
+            'is_covered' => ['nullable', 'boolean'],
+            'min_notice_hours' => ['nullable', 'integer', 'min:0'],
+            'max_advance_days' => ['nullable', 'integer', 'min:1'],
+            'max_active_bookings_per_user' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        if (isset($validated['sport_ids'])) {
+            $court->sports()->sync($validated['sport_ids']);
+            unset($validated['sport_ids']);
+        }
+
+        $court->update($validated);
+
+        return response()->json([
+            'message' => 'Quadra atualizada com sucesso',
+            'court' => $court->load(['sports', 'sport']),
+        ]);
+    }
+
+    public function destroy(Request $request, Court $court): JsonResponse
+    {
+        $user = $request->user();
+        if (!$user->isAdmin() && $court->venue->user_id !== $user->id) {
+            return response()->json(['message' => 'Você não tem permissão para remover esta quadra.'], 403);
+        }
+
+        $court->delete();
+
+        return response()->json([
+            'message' => 'Quadra removida com sucesso',
+        ]);
+    }
+}

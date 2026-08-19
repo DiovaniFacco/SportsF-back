@@ -1,0 +1,154 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\Booking;
+use App\Models\Court;
+use App\Models\CourtBlockout;
+use App\Models\CourtPricingRule;
+use App\Models\CourtSpecialPrice;
+use App\Models\OperatingHour;
+use Carbon\Carbon;
+
+class BookingSlotService
+{
+    /**
+     * Get all generated time slots for a given court and date, marking availability and calculating dynamic prices.
+     *
+     * @param Court $court
+     * @param string $dateStr (Format YYYY-MM-DD)
+     * @return array
+     */
+    public function getAvailableSlotsForCourt(Court $court, string $dateStr): array
+    {
+        $date = Carbon::parse($dateStr);
+        $dayOfWeek = $date->dayOfWeek; // 0 = Sunday, 6 = Saturday
+
+        $operatingHour = OperatingHour::where('court_id', $court->id)
+            ->where('day_of_week', $dayOfWeek)
+            ->first();
+
+        if (!$operatingHour) {
+            return [
+                'court_id' => $court->id,
+                'date' => $dateStr,
+                'day_of_week' => $dayOfWeek,
+                'operating' => false,
+                'slots' => [],
+            ];
+        }
+
+        $slotDuration = $operatingHour->slot_duration_minutes ?? 60;
+        
+        $dayStart = Carbon::parse($dateStr . ' ' . $operatingHour->start_time);
+        $dayEnd = Carbon::parse($dateStr . ' ' . $operatingHour->end_time);
+
+        // Fetch all confirmed bookings for this court on this day
+        $confirmedBookings = Booking::where('court_id', $court->id)
+            ->where('status', Booking::STATUS_CONFIRMED)
+            ->where('start_time', '<', $dayEnd)
+            ->where('end_time', '>', $dayStart)
+            ->get();
+
+        // Fetch all active blockouts for this court on this day
+        $blockouts = CourtBlockout::where('court_id', $court->id)
+            ->where('start_time', '<', $dayEnd)
+            ->where('end_time', '>', $dayStart)
+            ->get();
+
+        // Preload pricing rules for this court
+        $specialPrice = CourtSpecialPrice::where('court_id', $court->id)
+            ->where('event_date', $dateStr)
+            ->first();
+
+        $pricingRules = CourtPricingRule::where('court_id', $court->id)
+            ->where('day_of_week', $dayOfWeek)
+            ->get();
+
+        $slots = [];
+        $currentStart = $dayStart->copy();
+
+        while ($currentStart->copy()->addMinutes($slotDuration)->lte($dayEnd)) {
+            $currentEnd = $currentStart->copy()->addMinutes($slotDuration);
+
+            // Check if this slot overlaps with any confirmed booking
+            $isBooked = $confirmedBookings->contains(function (Booking $booking) use ($currentStart, $currentEnd) {
+                return $currentStart->lt($booking->end_time) && $currentEnd->gt($booking->start_time);
+            });
+
+            // Check if this slot overlaps with any blockout
+            $activeBlockout = $blockouts->first(function (CourtBlockout $blockout) use ($currentStart, $currentEnd) {
+                return $currentStart->lt($blockout->end_time) && $currentEnd->gt($blockout->start_time);
+            });
+
+            $isBlocked = $activeBlockout !== null;
+
+            $hourlyRate = $this->determineHourlyRate($court, $dateStr, $dayOfWeek, $currentStart, $currentEnd, $specialPrice, $pricingRules);
+            $price = round(($hourlyRate * $slotDuration) / 60, 2);
+
+            $slots[] = [
+                'start_time' => $currentStart->format('Y-m-d H:i:s'),
+                'end_time' => $currentEnd->format('Y-m-d H:i:s'),
+                'formatted_time' => $currentStart->format('H:i') . ' - ' . $currentEnd->format('H:i'),
+                'price' => $price,
+                'available' => !$isBooked && !$isBlocked,
+                'blocked' => $isBlocked,
+                'block_reason' => $activeBlockout?->reason,
+            ];
+
+            $currentStart->addMinutes($slotDuration);
+        }
+
+        return [
+            'court_id' => $court->id,
+            'court_name' => $court->name,
+            'date' => $dateStr,
+            'day_of_week' => $dayOfWeek,
+            'operating' => true,
+            'slots' => $slots,
+        ];
+    }
+
+    /**
+     * Calculate hourly rate based on priority: Special Date > Peak Hours Rule > Court Base Rate.
+     */
+    public function determineHourlyRate(
+        Court $court,
+        string $dateStr,
+        int $dayOfWeek,
+        Carbon $startTime,
+        Carbon $endTime,
+        ?CourtSpecialPrice $specialPrice = null,
+        $pricingRules = null
+    ): float {
+        // 1. Check special price for specific date
+        if ($specialPrice === null) {
+            $specialPrice = CourtSpecialPrice::where('court_id', $court->id)
+                ->where('event_date', $dateStr)
+                ->first();
+        }
+
+        if ($specialPrice) {
+            return (float) $specialPrice->hourly_rate;
+        }
+
+        // 2. Check peak hours pricing rules for day of week and time range
+        if ($pricingRules === null) {
+            $pricingRules = CourtPricingRule::where('court_id', $court->id)
+                ->where('day_of_week', $dayOfWeek)
+                ->get();
+        }
+
+        $slotStartFormatted = $startTime->format('H:i:s');
+        $slotEndFormatted = $endTime->format('H:i:s');
+
+        foreach ($pricingRules as $rule) {
+            if ($slotStartFormatted >= $rule->start_time && $slotEndFormatted <= $rule->end_time) {
+                return (float) $rule->hourly_rate;
+            }
+        }
+
+        // 3. Fallback to court base hourly rate
+        return (float) $court->hourly_rate;
+    }
+}

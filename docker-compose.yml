@@ -1,0 +1,61 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: quadras_app
+    restart: unless-stopped
+    working_dir: /var/www
+    volumes:
+      - .:/var/www
+    networks:
+      - quadras_net
+    depends_on:
+      - db
+
+  web:
+    image: nginx:alpine
+    container_name: quadras_web
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+    volumes:
+      - .:/var/www
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    networks:
+      - quadras_net
+    depends_on:
+      - app
+
+  db:
+    image: postgres:16-alpine
+    container_name: quadras_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-quadras_db}
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - quadras_net
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: quadras_mailpit
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    networks:
+      - quadras_net
+
+networks:
+  quadras_net:
+    driver: bridge
+
+volumes:
+  pgdata:
+    driver: local
