@@ -67,9 +67,16 @@ class BookingSlotService
 
         $slots = [];
         $currentStart = $dayStart->copy();
+        $now = now();
 
         while ($currentStart->copy()->addMinutes($slotDuration)->lte($dayEnd)) {
             $currentEnd = $currentStart->copy()->addMinutes($slotDuration);
+
+            // Skip slots that have already passed
+            if ($currentStart->lt($now)) {
+                $currentStart->addMinutes($slotDuration);
+                continue;
+            }
 
             // Check if this slot overlaps with any confirmed booking
             $isBooked = $confirmedBookings->contains(function (Booking $booking) use ($currentStart, $currentEnd) {
