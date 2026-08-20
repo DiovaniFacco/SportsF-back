@@ -58,6 +58,7 @@ Route::prefix('v1')->group(function () {
             Route::delete('/courts/{court}', [CourtController::class, 'destroy']);
 
             Route::post('/courts/{court}/operating-hours', [OperatingHourController::class, 'store']);
+            Route::delete('/operating-hours/{operatingHour}', [OperatingHourController::class, 'destroy']);
 
             // Pricing Rules (Horário Nobre) & Special Prices (Feriados)
             Route::get('/courts/{court}/pricing-rules', [CourtPricingController::class, 'indexRules']);
@@ -69,6 +70,7 @@ Route::prefix('v1')->group(function () {
             Route::delete('/special-prices/{specialPrice}', [CourtPricingController::class, 'destroySpecialPrice']);
 
             // Court Blockouts (Bloqueio de Agenda)
+            Route::get('/blockouts', [CourtBlockoutController::class, 'index']);
             Route::get('/courts/{court}/blockouts', [CourtBlockoutController::class, 'index']);
             Route::post('/courts/{court}/blockouts', [CourtBlockoutController::class, 'store']);
             Route::delete('/blockouts/{blockout}', [CourtBlockoutController::class, 'destroy']);

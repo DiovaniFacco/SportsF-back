@@ -10,11 +10,34 @@ use Illuminate\Http\Request;
 
 class CourtBlockoutController extends Controller
 {
-    public function index(Court $court): JsonResponse
+    public function index(Request $request, ?Court $court = null): JsonResponse
     {
+        $user = $request->user();
+        $query = CourtBlockout::query();
+
+        if ($court && $court->exists) {
+            $query->where('court_id', $court->id);
+        } else if ($request->has('court_id')) {
+            $query->where('court_id', $request->query('court_id'));
+        } else if ($user) {
+            if (!$user->isAdmin()) {
+                $courtIds = Court::whereHas('venue', function ($q) use ($user) {
+                    $q->where('user_id', $user->id);
+                })->pluck('id');
+                $query->whereIn('court_id', $courtIds);
+            }
+        }
+
+        if ($request->has('date')) {
+            $date = $request->query('date');
+            $query->whereDate('start_time', $date);
+        }
+
+        $blockouts = $query->orderBy('start_time')->get();
+
         return response()->json([
-            'court_id' => $court->id,
-            'blockouts' => $court->blockouts()->orderBy('start_time')->get(),
+            'success' => true,
+            'data' => $blockouts,
         ]);
     }
 
@@ -39,7 +62,9 @@ class CourtBlockoutController extends Controller
         ]);
 
         return response()->json([
+            'success' => true,
             'message' => 'Bloqueio de agenda criado com sucesso',
+            'data' => $blockout,
             'blockout' => $blockout,
         ], 201);
     }
@@ -54,6 +79,7 @@ class CourtBlockoutController extends Controller
         $blockout->delete();
 
         return response()->json([
+            'success' => true,
             'message' => 'Bloqueio removido com sucesso',
         ]);
     }

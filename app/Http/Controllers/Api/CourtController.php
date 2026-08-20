@@ -37,10 +37,22 @@ class CourtController extends Controller
             'min_notice_hours' => ['nullable', 'integer', 'min:0'],
             'max_advance_days' => ['nullable', 'integer', 'min:1'],
             'max_active_bookings_per_user' => ['nullable', 'integer', 'min:1'],
+            'operating_hours' => ['nullable', 'array'],
+            'operating_hours.*.day_of_week' => ['required_with:operating_hours', 'integer', 'between:0,6'],
+            'operating_hours.*.start_time' => ['required_with:operating_hours', 'string'],
+            'operating_hours.*.end_time' => ['required_with:operating_hours', 'string'],
+            'operating_hours.*.slot_duration_minutes' => ['nullable', 'integer', 'min:15', 'max:240'],
         ]);
 
         $sportIds = $validated['sport_ids'] ?? [];
         unset($validated['sport_ids']);
+
+        $operatingHoursData = $validated['operating_hours'] ?? null;
+        unset($validated['operating_hours']);
+
+        if (empty($validated['type'])) {
+            $validated['type'] = 'Quadra';
+        }
 
         $court = $venue->courts()->create($validated);
 
@@ -50,9 +62,20 @@ class CourtController extends Controller
             $court->sports()->sync([$court->sport_id]);
         }
 
+        if (!empty($operatingHoursData) && is_array($operatingHoursData)) {
+            foreach ($operatingHoursData as $oh) {
+                $court->operatingHours()->create([
+                    'day_of_week' => $oh['day_of_week'],
+                    'start_time' => $oh['start_time'],
+                    'end_time' => $oh['end_time'],
+                    'slot_duration_minutes' => $oh['slot_duration_minutes'] ?? 60,
+                ]);
+            }
+        }
+
         return response()->json([
             'message' => 'Quadra criada com sucesso',
-            'court' => $court->load(['sports', 'sport']),
+            'court' => $court->load(['sports', 'sport', 'operatingHours']),
         ], 201);
     }
 

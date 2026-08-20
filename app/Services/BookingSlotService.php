@@ -19,16 +19,17 @@ class BookingSlotService
      * @param string $dateStr (Format YYYY-MM-DD)
      * @return array
      */
-    public function getAvailableSlotsForCourt(Court $court, string $dateStr): array
+    public function getAvailableSlotsForCourt(Court $court, string $dateStr, bool $includePast = false): array
     {
         $date = Carbon::parse($dateStr);
         $dayOfWeek = $date->dayOfWeek; // 0 = Sunday, 6 = Saturday
 
-        $operatingHour = OperatingHour::where('court_id', $court->id)
+        $operatingHours = OperatingHour::where('court_id', $court->id)
             ->where('day_of_week', $dayOfWeek)
-            ->first();
+            ->orderBy('start_time')
+            ->get();
 
-        if (!$operatingHour) {
+        if ($operatingHours->isEmpty()) {
             return [
                 'court_id' => $court->id,
                 'date' => $dateStr,
@@ -38,27 +39,29 @@ class BookingSlotService
             ];
         }
 
-        $slotDuration = $operatingHour->slot_duration_minutes ?? 60;
-        
-        $dayStart = Carbon::parse($dateStr . ' ' . $operatingHour->start_time);
-        $dayEnd = Carbon::parse($dateStr . ' ' . $operatingHour->end_time);
+        // Find earliest start time and latest end time across shifts to query bookings/blockouts
+        $earliestStartStr = $operatingHours->min('start_time');
+        $latestEndStr = $operatingHours->max('end_time');
+
+        $overallStart = Carbon::parse($dateStr . ' ' . $earliestStartStr);
+        $overallEnd = Carbon::parse($dateStr . ' ' . $latestEndStr);
 
         // Fetch all confirmed bookings for this court on this day
         $confirmedBookings = Booking::where('court_id', $court->id)
             ->where('status', Booking::STATUS_CONFIRMED)
-            ->where('start_time', '<', $dayEnd)
-            ->where('end_time', '>', $dayStart)
+            ->where('start_time', '<', $overallEnd)
+            ->where('end_time', '>', $overallStart)
             ->get();
 
         // Fetch all active blockouts for this court on this day
         $blockouts = CourtBlockout::where('court_id', $court->id)
-            ->where('start_time', '<', $dayEnd)
-            ->where('end_time', '>', $dayStart)
+            ->where('start_time', '<', $overallEnd)
+            ->where('end_time', '>', $overallStart)
             ->get();
 
         // Preload pricing rules for this court
         $specialPrice = CourtSpecialPrice::where('court_id', $court->id)
-            ->where('event_date', $dateStr)
+            ->whereDate('event_date', $dateStr)
             ->first();
 
         $pricingRules = CourtPricingRule::where('court_id', $court->id)
@@ -66,44 +69,51 @@ class BookingSlotService
             ->get();
 
         $slots = [];
-        $currentStart = $dayStart->copy();
         $now = now();
 
-        while ($currentStart->copy()->addMinutes($slotDuration)->lte($dayEnd)) {
-            $currentEnd = $currentStart->copy()->addMinutes($slotDuration);
+        foreach ($operatingHours as $operatingHour) {
+            $slotDuration = $operatingHour->slot_duration_minutes ?? 60;
+            $shiftStart = Carbon::parse($dateStr . ' ' . $operatingHour->start_time);
+            $shiftEnd = Carbon::parse($dateStr . ' ' . $operatingHour->end_time);
 
-            // Skip slots that have already passed
-            if ($currentStart->lt($now)) {
+            $currentStart = $shiftStart->copy();
+
+            while ($currentStart->copy()->addMinutes($slotDuration)->lte($shiftEnd)) {
+                $currentEnd = $currentStart->copy()->addMinutes($slotDuration);
+
+                // Skip slots that have already passed if not explicitly requested
+                if (!$includePast && $currentStart->lt($now)) {
+                    $currentStart->addMinutes($slotDuration);
+                    continue;
+                }
+
+                // Check if this slot overlaps with any confirmed booking
+                $isBooked = $confirmedBookings->contains(function (Booking $booking) use ($currentStart, $currentEnd) {
+                    return $currentStart->lt($booking->end_time) && $currentEnd->gt($booking->start_time);
+                });
+
+                // Check if this slot overlaps with any blockout
+                $activeBlockout = $blockouts->first(function (CourtBlockout $blockout) use ($currentStart, $currentEnd) {
+                    return $currentStart->lt($blockout->end_time) && $currentEnd->gt($blockout->start_time);
+                });
+
+                $isBlocked = $activeBlockout !== null;
+
+                $hourlyRate = $this->determineHourlyRate($court, $dateStr, $dayOfWeek, $currentStart, $currentEnd, $specialPrice, $pricingRules);
+                $price = round(($hourlyRate * $slotDuration) / 60, 2);
+
+                $slots[] = [
+                    'start_time' => $currentStart->format('Y-m-d H:i:s'),
+                    'end_time' => $currentEnd->format('Y-m-d H:i:s'),
+                    'formatted_time' => $currentStart->format('H:i') . ' - ' . $currentEnd->format('H:i'),
+                    'price' => $price,
+                    'available' => !$isBooked && !$isBlocked,
+                    'blocked' => $isBlocked,
+                    'block_reason' => $activeBlockout?->reason,
+                ];
+
                 $currentStart->addMinutes($slotDuration);
-                continue;
             }
-
-            // Check if this slot overlaps with any confirmed booking
-            $isBooked = $confirmedBookings->contains(function (Booking $booking) use ($currentStart, $currentEnd) {
-                return $currentStart->lt($booking->end_time) && $currentEnd->gt($booking->start_time);
-            });
-
-            // Check if this slot overlaps with any blockout
-            $activeBlockout = $blockouts->first(function (CourtBlockout $blockout) use ($currentStart, $currentEnd) {
-                return $currentStart->lt($blockout->end_time) && $currentEnd->gt($blockout->start_time);
-            });
-
-            $isBlocked = $activeBlockout !== null;
-
-            $hourlyRate = $this->determineHourlyRate($court, $dateStr, $dayOfWeek, $currentStart, $currentEnd, $specialPrice, $pricingRules);
-            $price = round(($hourlyRate * $slotDuration) / 60, 2);
-
-            $slots[] = [
-                'start_time' => $currentStart->format('Y-m-d H:i:s'),
-                'end_time' => $currentEnd->format('Y-m-d H:i:s'),
-                'formatted_time' => $currentStart->format('H:i') . ' - ' . $currentEnd->format('H:i'),
-                'price' => $price,
-                'available' => !$isBooked && !$isBlocked,
-                'blocked' => $isBlocked,
-                'block_reason' => $activeBlockout?->reason,
-            ];
-
-            $currentStart->addMinutes($slotDuration);
         }
 
         return [
