@@ -14,11 +14,14 @@ class OperatingHourController extends Controller
     public function index(Court $court): JsonResponse
     {
         return response()->json([
-            'court_id' => $court->id,
-            'operating_hours' => $court->operatingHours()
-                ->orderBy('day_of_week')
-                ->orderBy('start_time')
-                ->get(),
+            'success' => true,
+            'data' => [
+                'court_id' => $court->id,
+                'operating_hours' => $court->operatingHours()
+                    ->orderBy('day_of_week')
+                    ->orderBy('start_time')
+                    ->get(),
+            ]
         ]);
     }
 
@@ -26,14 +29,17 @@ class OperatingHourController extends Controller
     {
         $user = $request->user();
         if (!$user->isAdmin() && $court->venue->user_id !== $user->id) {
-            return response()->json(['message' => 'Você não tem permissão para gerenciar horários desta quadra.'], 403);
+            return response()->json([
+                'success' => false,
+                'message' => 'Você não tem permissão para gerenciar horários desta quadra.'
+            ], 403);
         }
 
         $validated = $request->validate([
             'id' => ['nullable', 'integer', 'exists:operating_hours,id'],
             'day_of_week' => ['required', 'integer', 'between:0,6'],
             'start_time' => ['required', 'date_format:H:i'],
-            'end_time' => ['required', 'date_format:H:i', 'after:start_time'],
+            'end_time' => ['required', 'date_format:H:i', 'different:start_time'],
             'slot_duration_minutes' => ['nullable', 'integer', 'min:15', 'max:240'],
         ]);
 
@@ -56,6 +62,7 @@ class OperatingHourController extends Controller
 
         if ($overlapQuery->exists()) {
             return response()->json([
+                'success' => false,
                 'message' => 'O horário informado sobrepõe outro turno já cadastrado para este dia.'
             ], 422);
         }
@@ -79,7 +86,9 @@ class OperatingHourController extends Controller
         }
 
         return response()->json([
+            'success' => true,
             'message' => 'Horário de funcionamento salvo com sucesso',
+            'data' => $operatingHour,
             'operating_hour' => $operatingHour,
         ]);
     }
@@ -88,12 +97,16 @@ class OperatingHourController extends Controller
     {
         $user = $request->user();
         if (!$user->isAdmin() && $operatingHour->court->venue->user_id !== $user->id) {
-            return response()->json(['message' => 'Você não tem permissão para remover este turno.'], 403);
+            return response()->json([
+                'success' => false,
+                'message' => 'Você não tem permissão para remover este turno.'
+            ], 403);
         }
 
         $operatingHour->delete();
 
         return response()->json([
+            'success' => true,
             'message' => 'Turno de funcionamento removido com sucesso.',
         ]);
     }
@@ -109,7 +122,7 @@ class OperatingHourController extends Controller
 
         $result = $slotService->getAvailableSlotsForCourt($court, $validated['date'], $includePast);
 
-        return response()->json($result);
+        return response()->json(array_merge(['success' => true], $result));
     }
 }
 

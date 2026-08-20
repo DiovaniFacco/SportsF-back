@@ -19,10 +19,12 @@ Route::prefix('v1')->group(function () {
     // Healthcheck
     Route::get('/health', HealthCheckController::class);
 
-    // Authentication Public Routes
-    Route::post('/auth/register', [AuthController::class, 'register']);
-    Route::post('/auth/login', [AuthController::class, 'login']);
-    Route::post('/auth/google', [AuthController::class, 'googleAuth']);
+    // Authentication Public Routes (Rate Limited to 6 requests/minute)
+    Route::middleware('throttle:6,1')->group(function () {
+        Route::post('/auth/register', [AuthController::class, 'register']);
+        Route::post('/auth/login', [AuthController::class, 'login']);
+        Route::post('/auth/google', [AuthController::class, 'googleAuth']);
+    });
 
     // Public Categories & Metadata Routes
     Route::get('/sports', [SportController::class, 'index']);

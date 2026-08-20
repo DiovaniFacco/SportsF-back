@@ -16,11 +16,14 @@ class User extends Authenticatable
     public const ROLE_GESTOR = 'GESTOR_ESPACO';
     public const ROLE_CLIENTE = 'CLIENTE';
 
+    protected $attributes = [
+        'role' => self::ROLE_CLIENTE,
+    ];
+
     protected $fillable = [
         'name',
         'email',
         'password',
-        'role',
         'phone',
     ];
 

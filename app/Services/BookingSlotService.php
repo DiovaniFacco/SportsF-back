@@ -46,6 +46,12 @@ class BookingSlotService
         $overallStart = Carbon::parse($dateStr . ' ' . $earliestStartStr);
         $overallEnd = Carbon::parse($dateStr . ' ' . $latestEndStr);
 
+        // Se houver turno que cruza a meia-noite (end_time <= start_time ou overallEnd <= overallStart), estende overallEnd por 1 dia
+        $hasOvernight = $operatingHours->contains(fn($op) => $op->end_time <= $op->start_time);
+        if ($hasOvernight || $overallEnd->lte($overallStart)) {
+            $overallEnd->addDay();
+        }
+
         // Fetch all confirmed bookings for this court on this day
         $confirmedBookings = Booking::where('court_id', $court->id)
             ->where('status', Booking::STATUS_CONFIRMED)
@@ -75,6 +81,11 @@ class BookingSlotService
             $slotDuration = $operatingHour->slot_duration_minutes ?? 60;
             $shiftStart = Carbon::parse($dateStr . ' ' . $operatingHour->start_time);
             $shiftEnd = Carbon::parse($dateStr . ' ' . $operatingHour->end_time);
+
+            // Suporte a turnos noturnos que cruzam a meia-noite (ex: 22:00 às 02:00)
+            if ($shiftEnd->lte($shiftStart)) {
+                $shiftEnd->addDay();
+            }
 
             $currentStart = $shiftStart->copy();
 

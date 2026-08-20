@@ -16,8 +16,11 @@ class CourtPricingController extends Controller
     public function indexRules(Court $court): JsonResponse
     {
         return response()->json([
-            'court_id' => $court->id,
-            'pricing_rules' => $court->pricingRules()->orderBy('day_of_week')->orderBy('start_time')->get(),
+            'success' => true,
+            'data' => [
+                'court_id' => $court->id,
+                'pricing_rules' => $court->pricingRules()->orderBy('day_of_week')->orderBy('start_time')->get(),
+            ]
         ]);
     }
 
@@ -25,7 +28,10 @@ class CourtPricingController extends Controller
     {
         $user = $request->user();
         if (!$user->isAdmin() && $court->venue->user_id !== $user->id) {
-            return response()->json(['message' => 'Você não tem permissão para gerenciar a precificação desta quadra.'], 403);
+            return response()->json([
+                'success' => false,
+                'message' => 'Você não tem permissão para gerenciar a precificação desta quadra.'
+            ], 403);
         }
 
         $validated = $request->validate([
@@ -39,7 +45,9 @@ class CourtPricingController extends Controller
         $rule = $court->pricingRules()->create($validated);
 
         return response()->json([
+            'success' => true,
             'message' => 'Regra de horário nobre adicionada com sucesso',
+            'data' => $rule,
             'pricing_rule' => $rule,
         ], 201);
     }
@@ -48,12 +56,16 @@ class CourtPricingController extends Controller
     {
         $user = $request->user();
         if (!$user->isAdmin() && $pricingRule->court->venue->user_id !== $user->id) {
-            return response()->json(['message' => 'Você não tem permissão para remover esta regra.'], 403);
+            return response()->json([
+                'success' => false,
+                'message' => 'Você não tem permissão para remover esta regra.'
+            ], 403);
         }
 
         $pricingRule->delete();
 
         return response()->json([
+            'success' => true,
             'message' => 'Regra de preço removida com sucesso',
         ]);
     }
@@ -63,8 +75,11 @@ class CourtPricingController extends Controller
     public function indexSpecialPrices(Court $court): JsonResponse
     {
         return response()->json([
-            'court_id' => $court->id,
-            'special_prices' => $court->specialPrices()->orderBy('event_date')->get(),
+            'success' => true,
+            'data' => [
+                'court_id' => $court->id,
+                'special_prices' => $court->specialPrices()->orderBy('event_date')->get(),
+            ]
         ]);
     }
 
@@ -72,7 +87,10 @@ class CourtPricingController extends Controller
     {
         $user = $request->user();
         if (!$user->isAdmin() && $court->venue->user_id !== $user->id) {
-            return response()->json(['message' => 'Você não tem permissão para gerenciar a precificação desta quadra.'], 403);
+            return response()->json([
+                'success' => false,
+                'message' => 'Você não tem permissão para gerenciar a precificação desta quadra.'
+            ], 403);
         }
 
         $validated = $request->validate([
@@ -84,7 +102,9 @@ class CourtPricingController extends Controller
         $specialPrice = $court->specialPrices()->create($validated);
 
         return response()->json([
+            'success' => true,
             'message' => 'Preço especial de data/feriado cadastrado com sucesso',
+            'data' => $specialPrice,
             'special_price' => $specialPrice,
         ], 201);
     }
@@ -93,12 +113,16 @@ class CourtPricingController extends Controller
     {
         $user = $request->user();
         if (!$user->isAdmin() && $specialPrice->court->venue->user_id !== $user->id) {
-            return response()->json(['message' => 'Você não tem permissão para remover este preço especial.'], 403);
+            return response()->json([
+                'success' => false,
+                'message' => 'Você não tem permissão para remover este preço especial.'
+            ], 403);
         }
 
         $specialPrice->delete();
 
         return response()->json([
+            'success' => true,
             'message' => 'Preço especial removido com sucesso',
         ]);
     }
