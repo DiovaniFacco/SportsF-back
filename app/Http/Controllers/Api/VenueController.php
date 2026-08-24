@@ -131,10 +131,27 @@ class VenueController extends Controller
         ], 201);
     }
 
-    public function show(Venue $venue): JsonResponse
+    public function show(string $identifier): JsonResponse
     {
+        $query = Venue::with(['courts.sports', 'courts.sport', 'courts.operatingHours', 'amenities', 'reviews', 'owner']);
+
+        if (is_numeric($identifier)) {
+            $venue = $query->find((int) $identifier);
+        } else {
+            $slug = strtolower(trim($identifier));
+            $allVenues = $query->get();
+            $venue = $allVenues->first(function ($v) use ($slug) {
+                $vSlug = \Illuminate\Support\Str::slug($v->name);
+                return $vSlug === $slug || "{$vSlug}-{$v->id}" === $slug;
+            });
+        }
+
+        if (!$venue) {
+            return response()->json(['message' => 'Complexo esportivo não encontrado.'], 404);
+        }
+
         return response()->json([
-            'venue' => $venue->load(['courts.sports', 'courts.sport', 'courts.operatingHours', 'amenities', 'reviews', 'owner']),
+            'venue' => $venue,
         ]);
     }
 

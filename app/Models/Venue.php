@@ -40,7 +40,13 @@ class Venue extends Model
         'review_count',
         'sports',
         'is_open_today',
+        'slug',
     ];
+
+    public function getSlugAttribute(): string
+    {
+        return \Illuminate\Support\Str::slug($this->name);
+    }
 
     public function owner(): BelongsTo
     {
