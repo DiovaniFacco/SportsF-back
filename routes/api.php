@@ -49,11 +49,20 @@ Route::prefix('v1')->group(function () {
         // Submit Venue Review
         Route::post('/venues/{venue}/reviews', [VenueReviewController::class, 'store']);
 
+        // Venues & Users Management - Admin Only
+        Route::middleware(CheckRole::class . ':' . User::ROLE_ADMIN)->group(function () {
+            Route::get('/users', [AuthController::class, 'indexUsers']);
+            Route::post('/venues', [VenueController::class, 'store']);
+            Route::delete('/venues/{venue}', [VenueController::class, 'destroy']);
+        });
+
         // Venues & Courts Management (Gestor / Admin)
         Route::middleware(CheckRole::class . ':' . User::ROLE_GESTOR . ',' . User::ROLE_ADMIN)->group(function () {
-            Route::post('/venues', [VenueController::class, 'store']);
             Route::put('/venues/{venue}', [VenueController::class, 'update']);
-            Route::delete('/venues/{venue}', [VenueController::class, 'destroy']);
+
+            // Amenities Management
+            Route::post('/amenities', [AmenityController::class, 'store']);
+            Route::delete('/amenities/{amenity}', [AmenityController::class, 'destroy']);
 
             Route::post('/venues/{venue}/courts', [CourtController::class, 'store']);
             Route::put('/courts/{court}', [CourtController::class, 'update']);

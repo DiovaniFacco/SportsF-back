@@ -95,6 +95,6 @@ class Venue extends Model
                 return $uniqueSports;
             }
         }
-        return ['Futebol', 'Beach Tennis', 'Futsal'];
+        return ['Vôlei', 'Futevôlei', 'Beach Tennis', 'Padel'];
     }
 }

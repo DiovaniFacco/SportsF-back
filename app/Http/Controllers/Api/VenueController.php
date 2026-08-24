@@ -3,15 +3,17 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use App\Models\Venue;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 
 class VenueController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Venue::with(['courts.sports', 'courts.sport', 'amenities', 'reviews']);
+        $query = Venue::with(['courts.sports', 'courts.sport', 'amenities', 'reviews', 'owner']);
 
         if ($request->filled('city')) {
             $city = trim($request->query('city'));
@@ -63,9 +65,17 @@ class VenueController extends Controller
     public function store(Request $request): JsonResponse
     {
         $user = $request->user();
+        if (!$user->isAdmin()) {
+            return response()->json(['message' => 'Apenas administradores podem criar novos complexos.'], 403);
+        }
 
         $validated = $request->validate([
             'user_id' => ['nullable', 'exists:users,id'],
+            'new_manager' => ['nullable', 'array'],
+            'new_manager.name' => ['required_with:new_manager', 'string', 'max:255'],
+            'new_manager.email' => ['required_with:new_manager', 'email', 'max:255', 'unique:users,email'],
+            'new_manager.password' => ['required_with:new_manager', 'string', 'min:8'],
+            'new_manager.phone' => ['nullable', 'string', 'max:20'],
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'address' => ['required', 'string', 'max:255'],
@@ -82,7 +92,29 @@ class VenueController extends Controller
             'amenity_ids.*' => ['exists:amenities,id'],
         ]);
 
-        $ownerId = ($user->isAdmin() && isset($validated['user_id'])) ? $validated['user_id'] : $user->id;
+        $ownerId = $user->id;
+
+        if (!empty($validated['new_manager'])) {
+            $newManager = User::create([
+                'name' => $validated['new_manager']['name'],
+                'email' => $validated['new_manager']['email'],
+                'password' => Hash::make($validated['new_manager']['password']),
+                'phone' => $validated['new_manager']['phone'] ?? null,
+                'role' => User::ROLE_GESTOR,
+            ]);
+            $ownerId = $newManager->id;
+        } elseif (!empty($validated['user_id'])) {
+            $existingUser = User::find($validated['user_id']);
+            if ($existingUser) {
+                if ($existingUser->isCliente()) {
+                    $existingUser->role = User::ROLE_GESTOR;
+                    $existingUser->save();
+                }
+                $ownerId = $existingUser->id;
+            }
+        }
+
+        unset($validated['new_manager']);
         $validated['user_id'] = $ownerId;
 
         $amenityIds = $validated['amenity_ids'] ?? [];
@@ -95,14 +127,14 @@ class VenueController extends Controller
 
         return response()->json([
             'message' => 'Espaço criado com sucesso',
-            'venue' => $venue->load(['courts.sports', 'courts.sport', 'amenities', 'reviews']),
+            'venue' => $venue->load(['courts.sports', 'courts.sport', 'amenities', 'reviews', 'owner']),
         ], 201);
     }
 
     public function show(Venue $venue): JsonResponse
     {
         return response()->json([
-            'venue' => $venue->load(['courts.sports', 'courts.sport', 'courts.operatingHours', 'amenities', 'reviews']),
+            'venue' => $venue->load(['courts.sports', 'courts.sport', 'courts.operatingHours', 'amenities', 'reviews', 'owner']),
         ]);
     }
 
@@ -115,6 +147,11 @@ class VenueController extends Controller
 
         $validated = $request->validate([
             'user_id' => ['nullable', 'exists:users,id'],
+            'new_manager' => ['nullable', 'array'],
+            'new_manager.name' => ['required_with:new_manager', 'string', 'max:255'],
+            'new_manager.email' => ['required_with:new_manager', 'email', 'max:255', 'unique:users,email'],
+            'new_manager.password' => ['required_with:new_manager', 'string', 'min:8'],
+            'new_manager.phone' => ['nullable', 'string', 'max:20'],
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'address' => ['sometimes', 'required', 'string', 'max:255'],
@@ -131,9 +168,28 @@ class VenueController extends Controller
             'amenity_ids.*' => ['exists:amenities,id'],
         ]);
 
-        if (!$user->isAdmin()) {
+        if ($user->isAdmin()) {
+            if (!empty($validated['new_manager'])) {
+                $newManager = User::create([
+                    'name' => $validated['new_manager']['name'],
+                    'email' => $validated['new_manager']['email'],
+                    'password' => Hash::make($validated['new_manager']['password']),
+                    'phone' => $validated['new_manager']['phone'] ?? null,
+                    'role' => User::ROLE_GESTOR,
+                ]);
+                $validated['user_id'] = $newManager->id;
+            } elseif (!empty($validated['user_id'])) {
+                $existingUser = User::find($validated['user_id']);
+                if ($existingUser && $existingUser->isCliente()) {
+                    $existingUser->role = User::ROLE_GESTOR;
+                    $existingUser->save();
+                }
+            }
+        } else {
             unset($validated['user_id']);
         }
+
+        unset($validated['new_manager']);
 
         if (isset($validated['amenity_ids'])) {
             $venue->amenities()->sync($validated['amenity_ids']);
@@ -142,17 +198,25 @@ class VenueController extends Controller
 
         $venue->update($validated);
 
+        if ($venue->user_id) {
+            $owner = User::find($venue->user_id);
+            if ($owner && $owner->isCliente()) {
+                $owner->role = User::ROLE_GESTOR;
+                $owner->save();
+            }
+        }
+
         return response()->json([
             'message' => 'Espaço atualizado com sucesso',
-            'venue' => $venue->load(['courts.sports', 'courts.sport', 'amenities', 'reviews']),
+            'venue' => $venue->load(['courts.sports', 'courts.sport', 'amenities', 'reviews', 'owner']),
         ]);
     }
 
     public function destroy(Request $request, Venue $venue): JsonResponse
     {
         $user = $request->user();
-        if (!$user->isAdmin() && $venue->user_id !== $user->id) {
-            return response()->json(['message' => 'Você não tem permissão para remover este espaço.'], 403);
+        if (!$user->isAdmin()) {
+            return response()->json(['message' => 'Apenas administradores podem remover este espaço.'], 403);
         }
 
         $venue->delete();

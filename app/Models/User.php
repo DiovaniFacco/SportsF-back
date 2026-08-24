@@ -25,6 +25,7 @@ class User extends Authenticatable
         'email',
         'password',
         'phone',
+        'role',
     ];
 
     protected $hidden = [
@@ -47,12 +48,12 @@ class User extends Authenticatable
 
     public function isGestor(): bool
     {
-        return $this->role === self::ROLE_GESTOR || $this->isAdmin();
+        return $this->role === self::ROLE_GESTOR || $this->isAdmin() || $this->venues()->exists();
     }
 
     public function isCliente(): bool
     {
-        return $this->role === self::ROLE_CLIENTE;
+        return $this->role === self::ROLE_CLIENTE && !$this->venues()->exists();
     }
 
     public function venues(): HasMany

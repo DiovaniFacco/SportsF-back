@@ -56,6 +56,11 @@ class AuthController extends Controller
             ]);
         }
 
+        if ($user->role === User::ROLE_CLIENTE && $user->venues()->exists()) {
+            $user->role = User::ROLE_GESTOR;
+            $user->save();
+        }
+
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
@@ -122,6 +127,11 @@ class AuthController extends Controller
             ]);
         }
 
+        if ($user->role === User::ROLE_CLIENTE && $user->venues()->exists()) {
+            $user->role = User::ROLE_GESTOR;
+            $user->save();
+        }
+
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
@@ -134,8 +144,14 @@ class AuthController extends Controller
 
     public function me(Request $request): JsonResponse
     {
+        $user = $request->user();
+        if ($user->role === User::ROLE_CLIENTE && $user->venues()->exists()) {
+            $user->role = User::ROLE_GESTOR;
+            $user->save();
+        }
+
         return response()->json([
-            'user' => $request->user(),
+            'user' => $user,
         ]);
     }
 
@@ -145,6 +161,21 @@ class AuthController extends Controller
 
         return response()->json([
             'message' => 'Logout realizado com sucesso',
+        ]);
+    }
+
+    public function indexUsers(Request $request): JsonResponse
+    {
+        if (!$request->user()->isAdmin()) {
+            return response()->json(['message' => 'Acesso não autorizado.'], 403);
+        }
+
+        $users = User::select('id', 'name', 'email', 'role', 'phone')
+            ->orderBy('name')
+            ->get();
+
+        return response()->json([
+            'users' => $users,
         ]);
     }
 }

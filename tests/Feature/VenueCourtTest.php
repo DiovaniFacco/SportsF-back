@@ -15,9 +15,11 @@ class VenueCourtTest extends TestCase
     public function test_gestor_can_create_venue_and_courts(): void
     {
         $gestor = User::factory()->create(['role' => User::ROLE_GESTOR]);
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
 
-        $venueResponse = $this->actingAs($gestor)
+        $venueResponse = $this->actingAs($admin)
             ->postJson('/api/v1/venues', [
+                'user_id' => $gestor->id,
                 'name' => 'Arena Central',
                 'description' => 'Complexo esportivo com várias quadras',
                 'address' => 'Rua das Esportes, 100',
@@ -41,6 +43,7 @@ class VenueCourtTest extends TestCase
                 'name' => 'Quadra Society 1',
                 'type' => 'society',
                 'hourly_rate' => 150.00,
+                'image_url' => 'https://images.unsplash.com/photo-1574629810360-7efbbe195018',
             ]);
 
         $courtResponse->assertStatus(201)
@@ -48,12 +51,14 @@ class VenueCourtTest extends TestCase
                 'court' => [
                     'name' => 'Quadra Society 1',
                     'hourly_rate' => 150,
+                    'image_url' => 'https://images.unsplash.com/photo-1574629810360-7efbbe195018',
                 ],
             ]);
 
         $this->assertDatabaseHas('courts', [
             'venue_id' => $venueId,
             'name' => 'Quadra Society 1',
+            'image_url' => 'https://images.unsplash.com/photo-1574629810360-7efbbe195018',
         ]);
     }
 

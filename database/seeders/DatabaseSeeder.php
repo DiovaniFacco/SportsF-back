@@ -57,14 +57,11 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        // 2. Criar Esportes (Sports)
+        // 2. Criar Esportes (Sports) - Apenas Vôlei, Futevôlei, Beach Tennis e Padel
         $sportsData = [
-            ['name' => 'Futebol', 'slug' => 'futebol', 'icon' => 'FootballIcon'],
-            ['name' => 'Futsal', 'slug' => 'futsal', 'icon' => 'FutsalIcon'],
             ['name' => 'Vôlei', 'slug' => 'volei', 'icon' => 'VolleyballIcon'],
-            ['name' => 'Basquete', 'slug' => 'basquete', 'icon' => 'BasketballIcon'],
+            ['name' => 'Futevôlei', 'slug' => 'futevolei', 'icon' => 'FutevoleiIcon'],
             ['name' => 'Beach Tennis', 'slug' => 'beach-tennis', 'icon' => 'BeachTennisIcon'],
-            ['name' => 'Tênis', 'slug' => 'tenis', 'icon' => 'TennisIcon'],
             ['name' => 'Padel', 'slug' => 'padel', 'icon' => 'PadelIcon'],
         ];
 
@@ -100,7 +97,7 @@ class DatabaseSeeder extends Seeder
         $venue1 = Venue::create([
             'user_id' => $gestor->id,
             'name' => 'Arena Central Esportes',
-            'description' => 'Complexo esportivo completo com 4 quadras de futebol society, futsal e beach tennis, vestiários climatizados e lanchonete gourmet com área de convivência.',
+            'description' => 'Complexo esportivo completo com quadras de Vôlei de Areia, Futevôlei, Beach Tennis e Padel, vestiários climatizados e lanchonete gourmet com área de convivência.',
             'address' => 'Av. Paulista',
             'number' => '1500',
             'neighborhood' => 'Bela Vista',
@@ -124,32 +121,32 @@ class DatabaseSeeder extends Seeder
         // Quadras da Arena Central
         $court1_1 = Court::create([
             'venue_id' => $venue1->id,
-            'sport_id' => $sportsMap['Futebol']->id,
-            'name' => 'Quadra Society 1 — Grama FIFA 50mm',
-            'type' => 'Futebol',
-            'hourly_rate' => 150.00,
-            'surface' => 'Grama Sintética Pro',
-            'capacity' => '12 a 14 Jogadores (6x6)',
-            'is_covered' => true,
+            'sport_id' => $sportsMap['Vôlei']->id,
+            'name' => 'Arena Vôlei 1 — Areia Quartzosa',
+            'type' => 'Vôlei',
+            'hourly_rate' => 140.00,
+            'surface' => 'Areia Quartzosa Filtrada',
+            'capacity' => '4 a 12 Jogadores',
+            'is_covered' => false,
         ]);
-        $court1_1->sports()->attach([$sportsMap['Futebol']->id]);
+        $court1_1->sports()->attach([$sportsMap['Vôlei']->id]);
 
         $court1_2 = Court::create([
             'venue_id' => $venue1->id,
-            'sport_id' => $sportsMap['Futebol']->id,
-            'name' => 'Quadra Society 2 — Coberta VIP',
-            'type' => 'Futebol',
-            'hourly_rate' => 160.00,
-            'surface' => 'Grama Sintética Monofilamento',
-            'capacity' => '10 a 12 Jogadores (5x5)',
+            'sport_id' => $sportsMap['Futevôlei']->id,
+            'name' => 'Arena Futevôlei 2 — Coberta Pro',
+            'type' => 'Futevôlei',
+            'hourly_rate' => 150.00,
+            'surface' => 'Areia Fina Climatizada',
+            'capacity' => '2 a 6 Jogadores',
             'is_covered' => true,
         ]);
-        $court1_2->sports()->attach([$sportsMap['Futebol']->id]);
+        $court1_2->sports()->attach([$sportsMap['Futevôlei']->id]);
 
         $court1_3 = Court::create([
             'venue_id' => $venue1->id,
             'sport_id' => $sportsMap['Beach Tennis']->id,
-            'name' => 'Arena Areia 1 — Beach Tennis & Vôlei',
+            'name' => 'Arena Areia 3 — Beach Tennis & Vôlei',
             'type' => 'Beach Tennis, Vôlei',
             'hourly_rate' => 130.00,
             'surface' => 'Areia Quartzosa Filtrada',
@@ -160,21 +157,21 @@ class DatabaseSeeder extends Seeder
 
         $court1_4 = Court::create([
             'venue_id' => $venue1->id,
-            'sport_id' => $sportsMap['Futsal']->id,
-            'name' => 'Quadra Futsal Pro — Piso de Madeira',
-            'type' => 'Futsal',
-            'hourly_rate' => 140.00,
-            'surface' => 'Piso Flutuante Oficial',
-            'capacity' => '10 Jogadores (5x5)',
+            'sport_id' => $sportsMap['Padel']->id,
+            'name' => 'Quadra Padel Pro — Vidro 10mm',
+            'type' => 'Padel',
+            'hourly_rate' => 180.00,
+            'surface' => 'Grama Sintética Azul Pro',
+            'capacity' => '4 Jogadores',
             'is_covered' => true,
         ]);
-        $court1_4->sports()->attach([$sportsMap['Futsal']->id]);
+        $court1_4->sports()->attach([$sportsMap['Padel']->id]);
 
         // 5. Criar Complexo 2: Metropolitan Racket Club (São Paulo, SP)
         $venue2 = Venue::create([
             'user_id' => $gestor->id,
-            'name' => 'Metropolitan Racket Club',
-            'description' => 'Centro de alta performance especializado em esportes de raquete: Padel, Tênis de Saibro e Rápida, com treinadores certificados.',
+            'name' => 'Metropolitan Arena & Racket Club',
+            'description' => 'Centro de alta performance especializado em Padel, Beach Tennis, Futevôlei e Vôlei de Areia com treinadores certificados.',
             'address' => 'Rua das Palmeiras',
             'number' => '450',
             'neighborhood' => 'Jardins',
@@ -194,23 +191,23 @@ class DatabaseSeeder extends Seeder
             $amenitiesMap['Bar Sunset']->id,
         ]);
 
-        // Quadra Multi-Esporte 1 (Tênis AND Padel)
+        // Quadra Multi-Esporte 1 (Beach Tennis & Padel)
         $court2_1 = Court::create([
             'venue_id' => $venue2->id,
-            'sport_id' => $sportsMap['Tênis']->id,
-            'name' => 'Quadra 1 — Tênis & Padel Pro',
-            'type' => 'Tênis, Padel',
+            'sport_id' => $sportsMap['Beach Tennis']->id,
+            'name' => 'Quadra 1 — Beach Tennis & Padel Pro',
+            'type' => 'Beach Tennis, Padel',
             'hourly_rate' => 180.00,
-            'surface' => 'Saibro Vermelho / Vidro Panorama',
+            'surface' => 'Areia Quartzosa / Vidro Panorama',
             'capacity' => '2 a 4 Jogadores',
             'is_covered' => true,
         ]);
-        $court2_1->sports()->attach([$sportsMap['Tênis']->id, $sportsMap['Padel']->id]);
+        $court2_1->sports()->attach([$sportsMap['Beach Tennis']->id, $sportsMap['Padel']->id]);
 
         $court2_2 = Court::create([
             'venue_id' => $venue2->id,
             'sport_id' => $sportsMap['Padel']->id,
-            'name' => 'Quadra de Padel 2 — Vidro Panorama 10mm',
+            'name' => 'Quadra de Padel 2 — Vidro Panorama',
             'type' => 'Padel',
             'hourly_rate' => 200.00,
             'surface' => 'Grama Sintética Azul Pro',
@@ -238,7 +235,7 @@ class DatabaseSeeder extends Seeder
             'venue_id' => $venue1->id,
             'user_id' => $cliente1->id,
             'rating' => 5,
-            'comment' => 'Estrutura impecável! A grama sintética é excelente e os vestiários são muito limpos.',
+            'comment' => 'Estrutura impecável! A areia é excelente e os vestiários são muito limpos.',
         ]);
 
         VenueReview::create([
@@ -252,14 +249,14 @@ class DatabaseSeeder extends Seeder
             'venue_id' => $venue2->id,
             'user_id' => $cliente1->id,
             'rating' => 5,
-            'comment' => 'As quadras de saibro e padel são de nível profissional. Recomendo muito!',
+            'comment' => 'As quadras de beach tennis e padel são de nível profissional. Recomendo muito!',
         ]);
 
         VenueReview::create([
             'venue_id' => $venue2->id,
             'user_id' => $cliente2->id,
             'rating' => 4,
-            'comment' => 'Muito bom centro de padel e tênis.',
+            'comment' => 'Muito bom centro de padel e futevôlei.',
         ]);
     }
 }

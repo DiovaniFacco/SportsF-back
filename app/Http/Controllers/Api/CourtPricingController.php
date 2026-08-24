@@ -15,11 +15,13 @@ class CourtPricingController extends Controller
 
     public function indexRules(Court $court): JsonResponse
     {
+        $rules = $court->pricingRules()->orderBy('day_of_week')->orderBy('start_time')->get();
         return response()->json([
             'success' => true,
+            'pricing_rules' => $rules,
             'data' => [
                 'court_id' => $court->id,
-                'pricing_rules' => $court->pricingRules()->orderBy('day_of_week')->orderBy('start_time')->get(),
+                'pricing_rules' => $rules,
             ]
         ]);
     }
@@ -41,6 +43,22 @@ class CourtPricingController extends Controller
             'hourly_rate' => ['required', 'numeric', 'min:0'],
             'label' => ['nullable', 'string', 'max:100'],
         ]);
+
+        // Validação de sobreposição de horários no mesmo dia da semana
+        $existsOverlap = $court->pricingRules()
+            ->where('day_of_week', $validated['day_of_week'])
+            ->where(function ($q) use ($validated) {
+                $q->where('start_time', '<', $validated['end_time'])
+                  ->where('end_time', '>', $validated['start_time']);
+            })
+            ->exists();
+
+        if ($existsOverlap) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Já existe uma tarifa de horário nobre cadastrada para este dia da semana que se sobrepõe ao horário informado.'
+            ], 422);
+        }
 
         $rule = $court->pricingRules()->create($validated);
 
@@ -74,11 +92,13 @@ class CourtPricingController extends Controller
 
     public function indexSpecialPrices(Court $court): JsonResponse
     {
+        $specials = $court->specialPrices()->orderBy('event_date')->get();
         return response()->json([
             'success' => true,
+            'special_prices' => $specials,
             'data' => [
                 'court_id' => $court->id,
-                'special_prices' => $court->specialPrices()->orderBy('event_date')->get(),
+                'special_prices' => $specials,
             ]
         ]);
     }
@@ -98,6 +118,18 @@ class CourtPricingController extends Controller
             'hourly_rate' => ['required', 'numeric', 'min:0'],
             'label' => ['nullable', 'string', 'max:100'],
         ]);
+
+        // Validação de duplicidade de data especial / feriado
+        $existsDate = $court->specialPrices()
+            ->where('event_date', $validated['event_date'])
+            ->exists();
+
+        if ($existsDate) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Já existe uma tarifa de feriado cadastrada para esta data.'
+            ], 422);
+        }
 
         $specialPrice = $court->specialPrices()->create($validated);
 

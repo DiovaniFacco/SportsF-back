@@ -23,6 +23,7 @@ class Court extends Model
         'surface',
         'capacity',
         'is_covered',
+        'image_url',
         'min_notice_hours',
         'max_advance_days',
         'max_active_bookings_per_user',
@@ -69,7 +70,7 @@ class Court extends Model
         if ($this->type) {
             return array_map('trim', explode(',', $this->type));
         }
-        return ['Futebol'];
+        return ['Vôlei'];
     }
 
     public function operatingHours(): HasMany

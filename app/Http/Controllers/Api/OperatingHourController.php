@@ -38,10 +38,13 @@ class OperatingHourController extends Controller
         $validated = $request->validate([
             'id' => ['nullable', 'integer', 'exists:operating_hours,id'],
             'day_of_week' => ['required', 'integer', 'between:0,6'],
-            'start_time' => ['required', 'date_format:H:i'],
-            'end_time' => ['required', 'date_format:H:i', 'different:start_time'],
+            'start_time' => ['required', 'string'],
+            'end_time' => ['required', 'string', 'different:start_time'],
             'slot_duration_minutes' => ['nullable', 'integer', 'min:15', 'max:240'],
         ]);
+
+        $validated['start_time'] = substr($validated['start_time'], 0, 5);
+        $validated['end_time'] = substr($validated['end_time'], 0, 5);
 
         $startTimeStr = $validated['start_time'] . ':00';
         $endTimeStr = $validated['end_time'] . ':00';

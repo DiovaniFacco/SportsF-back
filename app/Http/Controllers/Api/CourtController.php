@@ -13,7 +13,7 @@ class CourtController extends Controller
     public function index(Venue $venue): JsonResponse
     {
         return response()->json([
-            'courts' => $venue->courts()->with(['sports', 'sport', 'operatingHours'])->get(),
+            'courts' => $venue->courts()->with(['sports', 'sport', 'operatingHours', 'pricingRules', 'specialPrices'])->get(),
         ]);
     }
 
@@ -34,6 +34,7 @@ class CourtController extends Controller
             'surface' => ['nullable', 'string', 'max:150'],
             'capacity' => ['nullable', 'string', 'max:100'],
             'is_covered' => ['nullable', 'boolean'],
+            'image_url' => ['nullable', 'string', 'max:2048'],
             'min_notice_hours' => ['nullable', 'integer', 'min:0'],
             'max_advance_days' => ['nullable', 'integer', 'min:1'],
             'max_active_bookings_per_user' => ['nullable', 'integer', 'min:1'],
@@ -103,10 +104,19 @@ class CourtController extends Controller
             'surface' => ['nullable', 'string', 'max:150'],
             'capacity' => ['nullable', 'string', 'max:100'],
             'is_covered' => ['nullable', 'boolean'],
+            'image_url' => ['nullable', 'string', 'max:2048'],
             'min_notice_hours' => ['nullable', 'integer', 'min:0'],
             'max_advance_days' => ['nullable', 'integer', 'min:1'],
             'max_active_bookings_per_user' => ['nullable', 'integer', 'min:1'],
+            'operating_hours' => ['nullable', 'array'],
+            'operating_hours.*.day_of_week' => ['required_with:operating_hours', 'integer', 'between:0,6'],
+            'operating_hours.*.start_time' => ['required_with:operating_hours', 'string'],
+            'operating_hours.*.end_time' => ['required_with:operating_hours', 'string'],
+            'operating_hours.*.slot_duration_minutes' => ['nullable', 'integer', 'min:15', 'max:240'],
         ]);
+
+        $operatingHoursData = $validated['operating_hours'] ?? null;
+        unset($validated['operating_hours']);
 
         if (isset($validated['sport_ids'])) {
             $court->sports()->sync($validated['sport_ids']);
@@ -115,9 +125,21 @@ class CourtController extends Controller
 
         $court->update($validated);
 
+        if ($operatingHoursData !== null && is_array($operatingHoursData)) {
+            $court->operatingHours()->delete();
+            foreach ($operatingHoursData as $oh) {
+                $court->operatingHours()->create([
+                    'day_of_week' => $oh['day_of_week'],
+                    'start_time' => substr($oh['start_time'], 0, 5),
+                    'end_time' => substr($oh['end_time'], 0, 5),
+                    'slot_duration_minutes' => $oh['slot_duration_minutes'] ?? 60,
+                ]);
+            }
+        }
+
         return response()->json([
             'message' => 'Quadra atualizada com sucesso',
-            'court' => $court->load(['sports', 'sport']),
+            'court' => $court->load(['sports', 'sport', 'operatingHours', 'pricingRules', 'specialPrices']),
         ]);
     }
 
