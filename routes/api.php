@@ -44,6 +44,7 @@ Route::prefix('v1')->group(function () {
     Route::middleware('auth:sanctum')->group(function () {
         // Auth Management
         Route::get('/auth/me', [AuthController::class, 'me']);
+        Route::put('/auth/me', [AuthController::class, 'updateProfile']);
         Route::post('/auth/logout', [AuthController::class, 'logout']);
 
         // Submit Venue Review
