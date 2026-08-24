@@ -13,7 +13,7 @@ class VenueController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Venue::with(['courts.sports', 'courts.sport', 'amenities', 'reviews', 'owner']);
+        $query = Venue::with(['courts.sports', 'courts.sport', 'courts.operatingHours', 'amenities', 'reviews', 'owner']);
 
         if ($request->filled('city')) {
             $city = trim($request->query('city'));

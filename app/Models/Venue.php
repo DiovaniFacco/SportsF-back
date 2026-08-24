@@ -39,6 +39,7 @@ class Venue extends Model
         'rating',
         'review_count',
         'sports',
+        'is_open_today',
     ];
 
     public function owner(): BelongsTo
@@ -96,5 +97,52 @@ class Venue extends Model
             }
         }
         return ['Vôlei', 'Futevôlei', 'Beach Tennis', 'Padel'];
+    }
+
+    public function getIsOpenTodayAttribute(): bool
+    {
+        $today = now()->dayOfWeek; // 0 (Domingo) a 6 (Sábado)
+
+        if ($this->relationLoaded('courts')) {
+            $courts = $this->courts;
+            if ($courts->isEmpty()) {
+                return true;
+            }
+
+            $hasAnyHoursConfigured = false;
+            foreach ($courts as $court) {
+                if ($court->relationLoaded('operatingHours')) {
+                    if ($court->operatingHours->isNotEmpty()) {
+                        $hasAnyHoursConfigured = true;
+                    }
+                    if ($court->operatingHours->where('day_of_week', $today)->isNotEmpty()) {
+                        return true;
+                    }
+                } else {
+                    if ($court->operatingHours()->exists()) {
+                        $hasAnyHoursConfigured = true;
+                    }
+                    if ($court->operatingHours()->where('day_of_week', $today)->exists()) {
+                        return true;
+                    }
+                }
+            }
+
+            return !$hasAnyHoursConfigured;
+        }
+
+        $courtIds = Court::where('venue_id', $this->id)->pluck('id');
+        if ($courtIds->isEmpty()) {
+            return true;
+        }
+
+        $hasAnyHoursConfigured = OperatingHour::whereIn('court_id', $courtIds)->exists();
+        if (!$hasAnyHoursConfigured) {
+            return true;
+        }
+
+        return OperatingHour::whereIn('court_id', $courtIds)
+            ->where('day_of_week', $today)
+            ->exists();
     }
 }
