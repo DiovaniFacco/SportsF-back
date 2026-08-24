@@ -107,7 +107,7 @@ class DatabaseSeeder extends Seeder
             'latitude' => -23.56141400,
             'longitude' => -46.65588100,
             'phone' => '(11) 98888-8888',
-            'cover_image_url' => 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=800&q=80',
+            'cover_image_url' => 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=1600&q=90',
         ]);
 
         $venue1->amenities()->attach([
@@ -181,7 +181,7 @@ class DatabaseSeeder extends Seeder
             'latitude' => -23.57022000,
             'longitude' => -46.66512000,
             'phone' => '(11) 97777-6666',
-            'cover_image_url' => 'https://images.unsplash.com/photo-1622279457486-62dcc4a431d6?auto=format&fit=crop&w=800&q=80',
+            'cover_image_url' => 'https://images.unsplash.com/photo-1622279457486-62dcc4a431d6?auto=format&fit=crop&w=1600&q=90',
         ]);
 
         $venue2->amenities()->attach([
