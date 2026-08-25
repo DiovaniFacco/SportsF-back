@@ -94,7 +94,8 @@ class DatabaseSeeder extends Seeder
         }
 
         // 4. Criar Complexo 1: Arena Central Esportes (São Paulo, SP)
-        $venue1 = Venue::create([
+        if (Venue::count() === 0) {
+            $venue1 = Venue::create([
             'user_id' => $gestor->id,
             'name' => 'Arena Central Esportes',
             'description' => 'Complexo esportivo completo com quadras de Vôlei de Areia, Futevôlei, Beach Tennis e Padel, vestiários climatizados e lanchonete gourmet com área de convivência.',
@@ -258,5 +259,6 @@ class DatabaseSeeder extends Seeder
             'rating' => 4,
             'comment' => 'Muito bom centro de padel e futevôlei.',
         ]);
+        }
     }
 }

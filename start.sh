@@ -17,9 +17,10 @@ php artisan view:cache
 # Ensure storage link is created
 php artisan storage:link --force || true
 
-# Run database migrations
-echo "Running database migrations..."
+# Run database migrations and seeders
+echo "Running database migrations and seeders..."
 php artisan migrate --force
+php artisan db:seed --force
 
 echo "Starting Apache on port ${PORT}..."
 exec apache2-foreground
