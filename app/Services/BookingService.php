@@ -39,19 +39,19 @@ class BookingService
         $endTime = Carbon::parse($endTimeStr);
         $now = now();
 
+        $isManual = $extraParams['is_manual'] ?? false;
+
         if ($startTime->gte($endTime)) {
             throw ValidationException::withMessages([
                 'end_time' => ['O horário de término deve ser posterior ao horário de início.'],
             ]);
         }
 
-        if ($startTime->lt($now)) {
+        if (!$isManual && $startTime->lt($now)) {
             throw ValidationException::withMessages([
                 'start_time' => ['Não é possível agendar para um horário no passado.'],
             ]);
         }
-
-        $isManual = $extraParams['is_manual'] ?? false;
 
         // If manual booking, verify that user is Gestor or Admin
         if ($isManual) {

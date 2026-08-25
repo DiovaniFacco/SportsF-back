@@ -26,11 +26,26 @@ class BookingController extends Controller
             $query->where('user_id', $user->id);
         }
 
+        if ($request->has('court_id') && $request->query('court_id') !== 'ALL') {
+            $query->where('court_id', $request->query('court_id'));
+        }
+
+        if ($request->has('date')) {
+            $query->whereDate('start_time', $request->query('date'));
+        }
+
         if ($request->has('status')) {
             $query->where('status', $request->query('status'));
         }
 
-        $bookings = $query->orderBy('start_time', 'desc')->paginate(15);
+        if ($request->has('date') || $request->boolean('all')) {
+            $bookings = $query->orderBy('start_time', 'asc')->get();
+            return response()->json([
+                'data' => $bookings,
+            ]);
+        }
+
+        $bookings = $query->orderBy('start_time', 'desc')->paginate($request->query('per_page', 15));
 
         return response()->json($bookings);
     }
