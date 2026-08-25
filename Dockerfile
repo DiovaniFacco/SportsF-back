@@ -24,7 +24,7 @@ WORKDIR /var/www/html
 COPY . .
 
 # Install PHP dependencies without dev packages
-RUN composer install --no-dev --optimize-autoloader --no-interaction --ignore-platform-req=php+
+RUN composer install --no-dev --optimize-autoloader --no-interaction --ignore-platform-reqs
 
 # Set correct permissions for Laravel storage and cache directories
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
