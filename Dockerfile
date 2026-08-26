@@ -6,8 +6,8 @@ ADD https://github.com/mlocati/docker-php-extension-installer/releases/latest/do
 RUN chmod +x /usr/local/bin/install-php-extensions && \
     install-php-extensions pdo_pgsql pgsql zip gd opcache bcmath intl dom xml mbstring
 
-# Enable Apache rewrite module for Laravel routing
-RUN a2enmod rewrite
+# Disable conflicting MPM modules and enable rewrite module for Laravel routing
+RUN a2dismod mpm_event mpm_worker || true && a2enmod mpm_prefork rewrite
 
 # Get latest Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer

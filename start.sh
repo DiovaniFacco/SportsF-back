@@ -3,7 +3,11 @@ set -e
 
 PORT="${PORT:-8080}"
 
-# Update Apache listening port dynamically for Render
+# Disable conflicting MPM modules to prevent AH00534 error on Railway/Render
+a2dismod mpm_event mpm_worker 2>/dev/null || true
+a2enmod mpm_prefork 2>/dev/null || true
+
+# Update Apache listening port dynamically for Render / Railway
 sed -i "s/Listen 80/Listen ${PORT}/g" /etc/apache2/ports.conf
 sed -i "s/<VirtualHost \*:80>/<VirtualHost *:${PORT}>/g" /etc/apache2/sites-available/000-default.conf
 
