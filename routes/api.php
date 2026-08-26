@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\HealthCheckController;
 use App\Http\Controllers\Api\OperatingHourController;
 use App\Http\Controllers\Api\SportController;
 use App\Http\Controllers\Api\VenueController;
+use App\Http\Controllers\Api\VenueCoverUploadController;
 use App\Http\Controllers\Api\VenueReviewController;
 use App\Http\Middleware\CheckRole;
 use App\Models\User;
@@ -60,6 +61,7 @@ Route::prefix('v1')->group(function () {
         // Venues & Courts Management (Gestor / Admin)
         Route::middleware(CheckRole::class . ':' . User::ROLE_GESTOR . ',' . User::ROLE_ADMIN)->group(function () {
             Route::put('/venues/{venue}', [VenueController::class, 'update']);
+            Route::post('/venues/cover-upload', VenueCoverUploadController::class);
 
             // Amenities Management
             Route::post('/amenities', [AmenityController::class, 'store']);
