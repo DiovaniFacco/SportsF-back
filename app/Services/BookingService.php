@@ -224,6 +224,23 @@ class BookingService
             ]);
         }
 
+        // Se for cliente, validar antecedência de cancelamento
+        if (!$user->isAdmin() && $user->id !== $booking->court->venue->user_id) {
+            $cancelLimitHours = $booking->court->venue->cancel_limit_hours ?? 0;
+            if ($cancelLimitHours > 0) {
+                $limitTime = now()->addHours($cancelLimitHours);
+                if ($booking->start_time->lt($limitTime)) {
+                    throw ValidationException::withMessages([
+                        'booking' => ["O cancelamento deve ser feito com pelo menos {$cancelLimitHours} hora(s) de antecedência."],
+                    ]);
+                }
+            } else if ($booking->start_time->lt(now())) {
+                throw ValidationException::withMessages([
+                    'booking' => ["Não é possível cancelar um agendamento no passado."],
+                ]);
+            }
+        }
+
         $booking->update([
             'status' => Booking::STATUS_CANCELLED,
         ]);

@@ -28,11 +28,13 @@ class Venue extends Model
         'longitude',
         'phone',
         'cover_image_url',
+        'cancel_limit_hours',
     ];
 
     protected $casts = [
         'latitude' => 'float',
         'longitude' => 'float',
+        'cancel_limit_hours' => 'integer',
     ];
 
     protected $appends = [
