@@ -17,30 +17,30 @@ class VenueController extends Controller
 
         if ($request->filled('city')) {
             $city = trim($request->query('city'));
-            $query->where('city', 'like', '%' . $city . '%');
+            $query->where('city', 'ilike', '%' . $city . '%');
         }
 
         if ($request->filled('sport') && $request->query('sport') !== 'Todos') {
             $sportName = trim($request->query('sport'));
             $query->whereHas('courts', function ($q) use ($sportName) {
                 $q->whereHas('sports', function ($sq) use ($sportName) {
-                    $sq->where('name', 'like', '%' . $sportName . '%')
-                       ->orWhere('slug', 'like', '%' . strtolower($sportName) . '%');
+                    $sq->where('name', 'ilike', '%' . $sportName . '%')
+                       ->orWhere('slug', 'ilike', '%' . strtolower($sportName) . '%');
                 })->orWhereHas('sport', function ($sq) use ($sportName) {
-                    $sq->where('name', 'like', '%' . $sportName . '%')
-                       ->orWhere('slug', 'like', '%' . strtolower($sportName) . '%');
-                })->orWhere('type', 'like', '%' . $sportName . '%');
+                    $sq->where('name', 'ilike', '%' . $sportName . '%')
+                       ->orWhere('slug', 'ilike', '%' . strtolower($sportName) . '%');
+                })->orWhere('type', 'ilike', '%' . $sportName . '%');
             });
         }
 
         if ($request->filled('search')) {
             $search = trim($request->query('search'));
             $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('city', 'like', "%{$search}%")
-                  ->orWhere('neighborhood', 'like', "%{$search}%")
-                  ->orWhere('address', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
+                $q->where('name', 'ilike', "%{$search}%")
+                  ->orWhere('city', 'ilike', "%{$search}%")
+                  ->orWhere('neighborhood', 'ilike', "%{$search}%")
+                  ->orWhere('address', 'ilike', "%{$search}%")
+                  ->orWhere('description', 'ilike', "%{$search}%");
             });
         }
 
