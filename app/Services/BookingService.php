@@ -212,7 +212,7 @@ class BookingService
      */
     public function cancelBooking(User $user, Booking $booking): Booking
     {
-        if (!$user->isAdmin() && $user->id !== $booking->user_id && $user->id !== $booking->court->venue->user_id) {
+        if (!$user->isAdmin() && $user->id !== $booking->user_id && $user->id !== $booking->court?->venue?->user_id) {
             throw ValidationException::withMessages([
                 'booking' => ['Você não tem permissão para cancelar este agendamento.'],
             ]);
@@ -225,8 +225,8 @@ class BookingService
         }
 
         // Se for cliente, validar antecedência de cancelamento
-        if (!$user->isAdmin() && $user->id !== $booking->court->venue->user_id) {
-            $cancelLimitHours = $booking->court->venue->cancel_limit_hours ?? 0;
+        if (!$user->isAdmin() && $user->id !== $booking->court?->venue?->user_id) {
+            $cancelLimitHours = $booking->court?->venue?->cancel_limit_hours ?? 0;
             if ($cancelLimitHours > 0) {
                 $limitTime = now()->addHours($cancelLimitHours);
                 if ($booking->start_time->lt($limitTime)) {
