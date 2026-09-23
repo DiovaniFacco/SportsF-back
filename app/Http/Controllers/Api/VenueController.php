@@ -88,6 +88,8 @@ class VenueController extends Controller
             'longitude' => ['nullable', 'numeric'],
             'phone' => ['nullable', 'string', 'max:20'],
             'cover_image_url' => ['nullable', 'url', 'max:500'],
+            'mode' => ['nullable', 'string', 'in:completo,simplificado'],
+            'whatsapp_number' => ['nullable', 'string', 'max:20'],
             'amenity_ids' => ['nullable', 'array'],
             'amenity_ids.*' => ['exists:amenities,id'],
         ]);
@@ -181,6 +183,8 @@ class VenueController extends Controller
             'longitude' => ['nullable', 'numeric'],
             'phone' => ['nullable', 'string', 'max:20'],
             'cover_image_url' => ['nullable', 'url', 'max:500'],
+            'mode' => ['sometimes', 'string', 'in:completo,simplificado'],
+            'whatsapp_number' => ['nullable', 'string', 'max:20'],
             'amenity_ids' => ['nullable', 'array'],
             'amenity_ids.*' => ['exists:amenities,id'],
         ]);
@@ -204,6 +208,9 @@ class VenueController extends Controller
             }
         } else {
             unset($validated['user_id']);
+            // Apenas ADMIN pode alternar o modo do complexo (completo/simplificado).
+            // O gestor configura apenas o WhatsApp e demais dados operacionais.
+            unset($validated['mode']);
         }
 
         unset($validated['new_manager']);

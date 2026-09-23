@@ -26,6 +26,7 @@ class Booking extends Model
         'end_time',
         'total_price',
         'status',
+        'is_paid',
     ];
 
     protected function casts(): array
@@ -35,6 +36,7 @@ class Booking extends Model
             'end_time' => 'datetime',
             'total_price' => 'decimal:2',
             'is_manual' => 'boolean',
+            'is_paid' => 'boolean',
         ];
     }
 

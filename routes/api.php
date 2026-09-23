@@ -95,5 +95,6 @@ Route::prefix('v1')->group(function () {
         Route::post('/bookings', [BookingController::class, 'store']);
         Route::get('/bookings/{booking}', [BookingController::class, 'show']);
         Route::patch('/bookings/{booking}/cancel', [BookingController::class, 'cancel']);
+        Route::patch('/bookings/{booking}/payment', [BookingController::class, 'updatePayment']);
     });
 });

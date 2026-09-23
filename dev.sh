@@ -4,8 +4,8 @@
 # SFACCO - Script de Inicialização & Reinicialização Unificada (Back + Front)
 # ==============================================================================
 
-BACKEND_DIR="/home/diovani/Área de trabalho/back"
-FRONTEND_DIR="/home/diovani/Área de trabalho/front"
+BACKEND_DIR="/home/diovanifacco/back"
+FRONTEND_DIR="/home/diovanifacco/front"
 
 # Cores ANSI para o terminal
 CYAN='\033[1;36m'

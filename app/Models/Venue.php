@@ -14,6 +14,9 @@ class Venue extends Model
 {
     use HasFactory, SoftDeletes;
 
+    public const MODE_COMPLETO = 'completo';
+    public const MODE_SIMPLIFICADO = 'simplificado';
+
     protected $fillable = [
         'user_id',
         'name',
@@ -29,6 +32,8 @@ class Venue extends Model
         'phone',
         'cover_image_url',
         'cancel_limit_hours',
+        'mode',
+        'whatsapp_number',
     ];
 
     protected $casts = [
@@ -43,11 +48,40 @@ class Venue extends Model
         'sports',
         'is_open_today',
         'slug',
+        'is_simplified',
     ];
 
     public function getSlugAttribute(): string
     {
         return \Illuminate\Support\Str::slug($this->name);
+    }
+
+    /**
+     * Indica se o complexo está no modo Simplificado (agenda visual + WhatsApp).
+     * Qualquer valor diferente de 'simplificado' é tratado como modo completo,
+     * mantendo o comportamento atual para complexos existentes.
+     */
+    public function getIsSimplifiedAttribute(): bool
+    {
+        return strtolower(trim((string) ($this->attributes['mode'] ?? self::MODE_COMPLETO))) === self::MODE_SIMPLIFICADO;
+    }
+
+    public function isSimplified(): bool
+    {
+        return $this->is_simplified;
+    }
+
+    /**
+     * Número de WhatsApp efetivo: prioriza whatsapp_number, com fallback para phone.
+     */
+    public function getWhatsappNumberResolvedAttribute(): ?string
+    {
+        $raw = $this->whatsapp_number ?? $this->phone;
+        if (empty($raw)) {
+            return null;
+        }
+        $digits = preg_replace('/\D+/', '', (string) $raw);
+        return $digits !== '' ? $digits : null;
     }
 
     public function owner(): BelongsTo

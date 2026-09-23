@@ -203,6 +203,7 @@ class BookingService
                 'end_time' => $endTime,
                 'total_price' => $totalPrice,
                 'status' => Booking::STATUS_CONFIRMED,
+                'is_paid' => (bool) ($extraParams['is_paid'] ?? false),
             ]);
         });
     }

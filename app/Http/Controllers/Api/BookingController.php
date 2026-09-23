@@ -60,6 +60,7 @@ class BookingController extends Controller
             'customer_name' => ['nullable', 'string', 'max:255'],
             'customer_phone' => ['nullable', 'string', 'max:20'],
             'notes' => ['nullable', 'string'],
+            'is_paid' => ['nullable', 'boolean'],
         ]);
 
         $extraParams = [
@@ -67,6 +68,7 @@ class BookingController extends Controller
             'customer_name' => $validated['customer_name'] ?? null,
             'customer_phone' => $validated['customer_phone'] ?? null,
             'notes' => $validated['notes'] ?? null,
+            'is_paid' => $validated['is_paid'] ?? false,
         ];
 
         $booking = $bookingService->createBooking(
@@ -102,6 +104,29 @@ class BookingController extends Controller
         return response()->json([
             'message' => 'Agendamento cancelado com sucesso.',
             'booking' => $updatedBooking,
+        ]);
+    }
+
+    /**
+     * Atualiza o status de pagamento de um agendamento (pago/pendente).
+     * Apenas o gestor do complexo ou admin — o cliente não marca o próprio pagamento.
+     */
+    public function updatePayment(Request $request, Booking $booking): JsonResponse
+    {
+        $user = $request->user();
+        if (!$user->isAdmin() && $booking->court->venue->user_id !== $user->id) {
+            return response()->json(['message' => 'Você não tem permissão para alterar o pagamento deste agendamento.'], 403);
+        }
+
+        $validated = $request->validate([
+            'is_paid' => ['required', 'boolean'],
+        ]);
+
+        $booking->update(['is_paid' => $validated['is_paid']]);
+
+        return response()->json([
+            'message' => $booking->is_paid ? 'Agendamento marcado como pago.' : 'Agendamento marcado como pendente.',
+            'booking' => $booking->load(['court.venue', 'user']),
         ]);
     }
 }
