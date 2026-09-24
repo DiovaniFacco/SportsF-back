@@ -117,7 +117,8 @@ class CourtBlockoutController extends Controller
     public function destroy(Request $request, CourtBlockout $blockout): JsonResponse
     {
         $user = $request->user();
-        if (!$user->isAdmin() && $blockout->court->venue->user_id !== $user->id) {
+        $venueUserId = $blockout->court?->venue?->user_id;
+        if (!$user->isAdmin() && $venueUserId !== $user->id) {
             return response()->json(['message' => 'Você não tem permissão para remover este bloqueio.'], 403);
         }
 

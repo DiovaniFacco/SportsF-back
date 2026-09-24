@@ -151,6 +151,10 @@ class BookingSlotService
                     'available' => !$isBooked && !$isBlocked,
                     'blocked' => $isBlocked,
                     'block_reason' => $activeBlockout?->reason,
+                    // IDs para o gestor conseguir desbloquear direto pelo slot,
+                    // mesmo quando o bloqueio abrange vários horários.
+                    'block_id' => $activeBlockout?->id,
+                    'blockout_id' => $activeBlockout?->id,
                 ];
 
                 $currentStart->addMinutes($slotDuration);
