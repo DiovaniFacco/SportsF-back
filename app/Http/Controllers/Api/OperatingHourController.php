@@ -35,12 +35,17 @@ class OperatingHourController extends Controller
             ], 403);
         }
 
+        // Turnos são sempre no mesmo dia (o motor de reservas/slots não
+        // suporta virada de meia-noite): fim deve ser após o início.
+        // O formato estrito evita 500 no Carbon com lixo ("abc").
         $validated = $request->validate([
             'id' => ['nullable', 'integer', 'exists:operating_hours,id'],
             'day_of_week' => ['required', 'integer', 'between:0,6'],
-            'start_time' => ['required', 'string'],
-            'end_time' => ['required', 'string', 'different:start_time'],
+            'start_time' => ['required', 'date_format:H:i'],
+            'end_time' => ['required', 'date_format:H:i', 'after:start_time'],
             'slot_duration_minutes' => ['nullable', 'integer', 'min:15', 'max:240'],
+        ], [
+            'end_time.after' => 'O horário de término deve ser após o horário de início (turnos sempre no mesmo dia).',
         ]);
 
         $validated['start_time'] = substr($validated['start_time'], 0, 5);

@@ -215,6 +215,49 @@ class BookingService
     }
 
     /**
+     * Create multiple bookings atomically (all-or-nothing).
+     *
+     * Usado pela seleção multi-slot do app: ou todos os horários são
+     * reservados, ou nenhum é (evita "sucesso parcial"). Qualquer falha
+     * de validação/concorrência em um slot aborta o lote inteiro via
+     * rollback da transação externa (os createBooking internos usam
+     * savepoints e participam do mesmo rollback).
+     *
+     * @param User $user
+     * @param int $courtId
+     * @param array $slots Lista de ['start_time' => 'Y-m-d H:i:s', 'end_time' => 'Y-m-d H:i:s']
+     * @param array $extraParams
+     * @return Booking[]
+     * @throws ValidationException
+     */
+    public function createBookingsBatch(
+        User $user,
+        int $courtId,
+        array $slots,
+        array $extraParams = []
+    ): array {
+        if (empty($slots)) {
+            throw ValidationException::withMessages([
+                'slots' => ['Informe ao menos um horário para reservar.'],
+            ]);
+        }
+
+        return DB::transaction(function () use ($user, $courtId, $slots, $extraParams) {
+            $bookings = [];
+            foreach ($slots as $slot) {
+                $bookings[] = $this->createBooking(
+                    $user,
+                    $courtId,
+                    $slot['start_time'],
+                    $slot['end_time'],
+                    $extraParams
+                );
+            }
+            return $bookings;
+        });
+    }
+
+    /**
      * Cancel a booking.
      */
     public function cancelBooking(User $user, Booking $booking): Booking

@@ -42,16 +42,20 @@ Verifica o status operacional da API, versão do PHP e conexão com o banco de d
 ## 2. Autenticação & Usuários
 
 ### `POST /api/v1/auth/register`
-Cadastra um novo usuário no sistema (`CLIENTE`, `GESTOR_ESPACO` ou `ADMIN`).
+Cadastra um novo usuário no sistema, **sempre com o perfil `CLIENTE`**
+(o campo `role`, se enviado, é ignorado por segurança).
+
+Para tornar alguém gestor de um complexo, um `ADMIN` deve vincular o
+usuário como dono via `POST /api/v1/venues` (`user_id` ou `new_manager`) —
+o dono é promovido automaticamente a `GESTOR_ESPACO`.
 
 - **Autenticação:** Pública
 - **Payload:**
 ```json
 {
-  "name": "João Gestor",
-  "email": "joao@arena.com",
+  "name": "João Cliente",
+  "email": "joao@cliente.com",
   "password": "password123",
-  "role": "GESTOR_ESPACO",
   "phone": "11999999999"
 }
 ```
@@ -317,6 +321,8 @@ Consulta os horários de funcionamento cadastrados para a quadra.
 
 ### `POST /api/v1/courts/{court_id}/operating-hours`
 Configura ou atualiza o horário de funcionamento da quadra para um dia da semana.
+Turnos são sempre **no mesmo dia**: `end_time` deve ser após `start_time`
+(virada de meia-noite não é suportada) e ambos no formato `HH:MM`.
 
 - **Autenticação:** Requer Token Bearer (Proprietário ou Admin)
 - **Payload:**
@@ -336,7 +342,9 @@ Configura ou atualiza o horário de funcionamento da quadra para um dia da seman
 Calcula e retorna todos os slots de tempo do dia, indicando se cada horário está livre (`available: true`) ou ocupado (`available: false`).
 
 - **Autenticação:** Pública
-- **Query Params:** `?date=2026-08-10`
+- **Query Params:** `?date=2026-08-10` (opcional: `&include_past=1` para incluir slots já passados)
+- **Resposta:** inclui `operating` (existe grade no dia), `is_past` (data anterior a hoje)
+  e `message` (ex.: aviso de data passada ou de bloqueio indeterminado).
 
 **Exemplo de Resposta (`200 OK`):**
 ```json
@@ -422,6 +430,35 @@ Realiza a reserva de um slot de tempo em uma quadra. Possui **trava de concorrê
 
 ---
 
+### `POST /api/v1/bookings/batch`
+Realiza a reserva de **vários slots de uma vez, de forma atômica (tudo ou nada)**.
+Usado pela seleção multi-slot do app: se qualquer horário falhar
+(conflito, limite de reservas, fora da grade), **nenhuma** reserva é criada.
+
+- **Autenticação:** Requer Token Bearer
+- **Payload:**
+```json
+{
+  "court_id": 1,
+  "notes": "Observação opcional",
+  "slots": [
+    { "start_time": "2026-08-10 14:00:00", "end_time": "2026-08-10 15:00:00" },
+    { "start_time": "2026-08-10 15:00:00", "end_time": "2026-08-10 16:00:00" }
+  ]
+}
+```
+
+**Exemplo de Resposta Sucesso (`201 Created`):**
+```json
+{
+  "message": "2 agendamentos realizados com sucesso!",
+  "bookings": [ { "id": 1, "status": "confirmed" }, { "id": 2, "status": "confirmed" } ],
+  "booking": { "id": 1, "status": "confirmed" }
+}
+```
+
+---
+
 ### `GET /api/v1/bookings/{id}`
 Exibe os detalhes de uma reserva específica.
 
@@ -477,6 +514,8 @@ Lista as tabelas de preços em feriados e datas especiais.
 
 ### `POST /api/v1/courts/{court_id}/special-prices`
 Cadastra preço diferenciado para uma data específica (feriado).
+`event_date` usa o formato `YYYY-MM-DD` e é devolvida pela API
+nesse mesmo formato (conceito de data, sem hora/timezone).
 - **Autenticação:** Requer Token Bearer (Gestor ou Admin)
 - **Payload:**
 ```json

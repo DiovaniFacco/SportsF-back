@@ -85,6 +85,40 @@ class BookingController extends Controller
         ], 201);
     }
 
+    /**
+     * Cria várias reservas de uma vez, de forma atômica (tudo ou nada).
+     * Qualquer slot inválido/conflitante aborta o lote inteiro.
+     */
+    public function storeBatch(Request $request, BookingService $bookingService): JsonResponse
+    {
+        $validated = $request->validate([
+            'court_id' => ['required', 'exists:courts,id'],
+            'slots' => ['required', 'array', 'min:1', 'max:10'],
+            'slots.*.start_time' => ['required', 'date_format:Y-m-d H:i:s'],
+            'slots.*.end_time' => ['required', 'date_format:Y-m-d H:i:s'],
+            'notes' => ['nullable', 'string'],
+        ]);
+
+        $bookings = $bookingService->createBookingsBatch(
+            $request->user(),
+            $validated['court_id'],
+            $validated['slots'],
+            ['notes' => $validated['notes'] ?? null]
+        );
+
+        foreach ($bookings as $booking) {
+            $booking->load(['court.venue', 'user']);
+        }
+
+        return response()->json([
+            'message' => count($bookings) === 1
+                ? 'Agendamento realizado com sucesso!'
+                : count($bookings) . ' agendamentos realizados com sucesso!',
+            'bookings' => $bookings,
+            'booking' => $bookings[0] ?? null,
+        ], 201);
+    }
+
     public function show(Request $request, Booking $booking): JsonResponse
     {
         $user = $request->user();

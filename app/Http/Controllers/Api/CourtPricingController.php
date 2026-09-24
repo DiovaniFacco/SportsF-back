@@ -119,9 +119,9 @@ class CourtPricingController extends Controller
             'label' => ['nullable', 'string', 'max:100'],
         ]);
 
-        // Validação de duplicidade de data especial / feriado
+        // Validação de duplicidade de data especial / feriado (compara só a data)
         $existsDate = $court->specialPrices()
-            ->where('event_date', $validated['event_date'])
+            ->whereDate('event_date', $validated['event_date'])
             ->exists();
 
         if ($existsDate) {

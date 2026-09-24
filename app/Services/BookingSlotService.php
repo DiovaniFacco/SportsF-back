@@ -24,6 +24,10 @@ class BookingSlotService
         $date = Carbon::parse($dateStr);
         $dayOfWeek = $date->dayOfWeek; // 0 = Sunday, 6 = Saturday
 
+        // Data no passado: sinaliza explicitamente para o app exibir
+        // mensagem adequada (em vez de "sem horários cadastrados").
+        $isPast = $date->isBefore(Carbon::today());
+
         $operatingHours = OperatingHour::where('court_id', $court->id)
             ->where('day_of_week', $dayOfWeek)
             ->orderBy('start_time')
@@ -35,6 +39,7 @@ class BookingSlotService
                 'date' => $dateStr,
                 'day_of_week' => $dayOfWeek,
                 'operating' => false,
+                'is_past' => $isPast,
                 'slots' => [],
             ];
         }
@@ -77,6 +82,7 @@ class BookingSlotService
                 'date' => $dateStr,
                 'day_of_week' => $dayOfWeek,
                 'operating' => true,
+                'is_past' => $isPast,
                 'blocked_indefinitely' => true,
                 'is_blocked_indefinitely' => true,
                 'block_reason' => $indefiniteBlockout->reason,
@@ -157,6 +163,10 @@ class BookingSlotService
             'date' => $dateStr,
             'day_of_week' => $dayOfWeek,
             'operating' => true,
+            'is_past' => $isPast,
+            'message' => $isPast && empty($slots)
+                ? 'Esta data já passou. Selecione hoje ou uma data futura.'
+                : null,
             'blocked_indefinitely' => false,
             'is_blocked_indefinitely' => false,
             'slots' => $slots,
@@ -178,7 +188,7 @@ class BookingSlotService
         // 1. Check special price for specific date
         if ($specialPrice === null) {
             $specialPrice = CourtSpecialPrice::where('court_id', $court->id)
-                ->where('event_date', $dateStr)
+                ->whereDate('event_date', $dateStr)
                 ->first();
         }
 

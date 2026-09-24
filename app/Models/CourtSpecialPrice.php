@@ -20,7 +20,8 @@ class CourtSpecialPrice extends Model
     protected function casts(): array
     {
         return [
-            'event_date' => 'date',
+            // Serializa como "YYYY-MM-DD": é conceito de data, sem hora/timezone.
+            'event_date' => 'date:Y-m-d',
             'hourly_rate' => 'decimal:2',
         ];
     }
