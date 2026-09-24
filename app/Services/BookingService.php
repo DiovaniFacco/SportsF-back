@@ -155,12 +155,18 @@ class BookingService
             }
 
             // 7. Validate Court Blockouts (Bloqueio de Agenda por Manutenção/Eventos)
+            // Inclui bloqueio indeterminado (sem end_time): bloqueia tudo após start_time.
             $hasBlockout = CourtBlockout::where('court_id', $courtId)
-                ->where('start_time', '<', $endTime)
-                ->where('end_time', '>', $startTime)
+                ->overlapping($startTime, $endTime)
                 ->first();
 
             if ($hasBlockout) {
+                if ($hasBlockout->isIndefinite()) {
+                    $reasonText = $hasBlockout->reason ? " Motivo: {$hasBlockout->reason}" : '';
+                    throw ValidationException::withMessages([
+                        'start_time' => ["Esta quadra está temporariamente indisponível por tempo indeterminado.{$reasonText} Tente outra quadra ou data."],
+                    ]);
+                }
                 $reasonText = $hasBlockout->reason ? " Motivo: {$hasBlockout->reason}" : '';
                 throw ValidationException::withMessages([
                     'start_time' => ["Este horário está bloqueado pelo gestor para manutenção ou evento.{$reasonText}"],

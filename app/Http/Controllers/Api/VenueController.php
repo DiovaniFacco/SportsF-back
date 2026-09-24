@@ -13,7 +13,7 @@ class VenueController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Venue::with(['courts.sports', 'courts.sport', 'courts.operatingHours', 'amenities', 'reviews', 'owner']);
+        $query = Venue::with(['courts.sports', 'courts.sport', 'courts.operatingHours', 'courts.activeIndefiniteBlockout', 'amenities', 'reviews', 'owner']);
 
         if ($request->filled('city')) {
             $city = trim($request->query('city'));
@@ -135,7 +135,7 @@ class VenueController extends Controller
 
     public function show(string $identifier): JsonResponse
     {
-        $query = Venue::with(['courts.sports', 'courts.sport', 'courts.operatingHours', 'amenities', 'reviews', 'owner']);
+        $query = Venue::with(['courts.sports', 'courts.sport', 'courts.operatingHours', 'courts.activeIndefiniteBlockout', 'amenities', 'reviews', 'owner']);
 
         if (is_numeric($identifier)) {
             $venue = $query->find((int) $identifier);

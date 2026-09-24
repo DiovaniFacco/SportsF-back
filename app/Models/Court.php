@@ -31,6 +31,7 @@ class Court extends Model
 
     protected $appends = [
         'sports_list',
+        'is_blocked_indefinitely',
     ];
 
     protected function casts(): array
@@ -73,6 +74,47 @@ class Court extends Model
         return ['Vôlei'];
     }
 
+    /**
+     * Flag pública para o usuário comum saber (antes de abrir os horários)
+     * se a quadra está bloqueada por tempo indeterminado.
+     * Usa a relação já carregada quando disponível para evitar N+1.
+     */
+    public function getIsBlockedIndefinitelyAttribute(): bool
+    {
+        try {
+            if ($this->relationLoaded('activeIndefiniteBlockout')) {
+                return $this->activeIndefiniteBlockout !== null;
+            }
+
+            // Evita query extra quando o modelo ainda não existe ou já foi avaliado
+            if (!$this->exists) {
+                return false;
+            }
+
+            return $this->activeIndefiniteBlockout()->exists();
+        } catch (\Throwable $e) {
+            // Coluna ainda não migrada ou DB indisponível: não bloqueia
+            return false;
+        }
+    }
+
+    public function getIndefiniteBlockReasonAttribute(): ?string
+    {
+        try {
+            if ($this->relationLoaded('activeIndefiniteBlockout')) {
+                return $this->activeIndefiniteBlockout?->reason;
+            }
+
+            if (!$this->exists) {
+                return null;
+            }
+
+            return $this->activeIndefiniteBlockout()->first()?->reason;
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
     public function operatingHours(): HasMany
     {
         return $this->hasMany(OperatingHour::class);
@@ -96,5 +138,37 @@ class Court extends Model
     public function blockouts(): HasMany
     {
         return $this->hasMany(CourtBlockout::class);
+    }
+
+    /**
+     * Bloqueio indeterminado ativo (start_time <= agora).
+     * Usado para avisar o usuário comum que a quadra está indisponível
+     * por tempo indeterminado até o gestor desbloquear.
+     */
+    public function activeIndefiniteBlockout(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(CourtBlockout::class)
+            ->where(function ($q) {
+                $q->where('is_indefinite', true)->orWhereNull('end_time');
+            })
+            ->where('start_time', '<=', now())
+            ->orderByDesc('start_time')
+            ->orderByDesc('id');
+    }
+
+    public function getActiveIndefiniteBlockout(?string $referenceDateTime = null): ?CourtBlockout
+    {
+        $ref = $referenceDateTime ?? now()->toDateTimeString();
+
+        return $this->blockouts()
+            ->indefiniteActive($ref)
+            ->orderByDesc('start_time')
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    public function isBlockedIndefinitely(?string $referenceDateTime = null): bool
+    {
+        return $this->getActiveIndefiniteBlockout($referenceDateTime) !== null;
     }
 }

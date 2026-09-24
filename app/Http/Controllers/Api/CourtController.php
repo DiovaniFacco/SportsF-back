@@ -12,8 +12,10 @@ class CourtController extends Controller
 {
     public function index(Venue $venue): JsonResponse
     {
+        $courts = $venue->courts()->with(['sports', 'sport', 'operatingHours', 'pricingRules', 'specialPrices', 'activeIndefiniteBlockout'])->get();
+
         return response()->json([
-            'courts' => $venue->courts()->with(['sports', 'sport', 'operatingHours', 'pricingRules', 'specialPrices'])->get(),
+            'courts' => $courts,
         ]);
     }
 
@@ -82,8 +84,19 @@ class CourtController extends Controller
 
     public function show(Court $court): JsonResponse
     {
+        $court->load(['venue', 'sports', 'sport', 'operatingHours', 'pricingRules', 'specialPrices', 'blockouts', 'activeIndefiniteBlockout']);
+
         return response()->json([
-            'court' => $court->load(['venue', 'sports', 'sport', 'operatingHours', 'pricingRules', 'specialPrices', 'blockouts']),
+            'court' => $court,
+            // Aviso para o usuário comum antes de abrir os horários
+            'is_blocked_indefinitely' => (bool) $court->is_blocked_indefinitely,
+            'blocked_indefinitely' => (bool) $court->is_blocked_indefinitely,
+            'indefinite_blockout' => $court->activeIndefiniteBlockout,
+            'block_message' => $court->is_blocked_indefinitely
+                ? 'Esta quadra está temporariamente indisponível'
+                    . ($court->activeIndefiniteBlockout?->reason ? " ({$court->activeIndefiniteBlockout->reason})" : '')
+                    . '. Tente outra quadra ou data.'
+                : null,
         ]);
     }
 

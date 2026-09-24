@@ -60,10 +60,33 @@ class BookingSlotService
             ->get();
 
         // Fetch all active blockouts for this court on this day
+        // (inclui indeterminados que começaram antes do fim do dia consultado)
         $blockouts = CourtBlockout::where('court_id', $court->id)
-            ->where('start_time', '<', $overallEnd)
-            ->where('end_time', '>', $overallStart)
+            ->overlapping($overallStart, $overallEnd)
             ->get();
+
+        // Bloqueio indeterminado ativo para a data consultada:
+        // usuário comum nem deve ver os horários — retorna aviso.
+        $indefiniteBlockout = $blockouts
+            ->first(fn(CourtBlockout $b) => $b->isIndefinite() && $b->start_time->lte($overallEnd));
+
+        if ($indefiniteBlockout) {
+            return [
+                'court_id' => $court->id,
+                'court_name' => $court->name,
+                'date' => $dateStr,
+                'day_of_week' => $dayOfWeek,
+                'operating' => true,
+                'blocked_indefinitely' => true,
+                'is_blocked_indefinitely' => true,
+                'block_reason' => $indefiniteBlockout->reason,
+                'blockout' => $indefiniteBlockout,
+                'message' => 'Esta quadra está temporariamente indisponível'
+                    . ($indefiniteBlockout->reason ? " ({$indefiniteBlockout->reason})" : '')
+                    . '. Tente outra quadra ou data.',
+                'slots' => [],
+            ];
+        }
 
         // Preload pricing rules for this court
         $specialPrice = CourtSpecialPrice::where('court_id', $court->id)
@@ -104,8 +127,9 @@ class BookingSlotService
                 });
 
                 // Check if this slot overlaps with any blockout
+                // (indeterminado: end_time NULL bloqueia tudo após start_time)
                 $activeBlockout = $blockouts->first(function (CourtBlockout $blockout) use ($currentStart, $currentEnd) {
-                    return $currentStart->lt($blockout->end_time) && $currentEnd->gt($blockout->start_time);
+                    return $blockout->overlaps($currentStart, $currentEnd);
                 });
 
                 $isBlocked = $activeBlockout !== null;
@@ -133,6 +157,8 @@ class BookingSlotService
             'date' => $dateStr,
             'day_of_week' => $dayOfWeek,
             'operating' => true,
+            'blocked_indefinitely' => false,
+            'is_blocked_indefinitely' => false,
             'slots' => $slots,
         ];
     }
