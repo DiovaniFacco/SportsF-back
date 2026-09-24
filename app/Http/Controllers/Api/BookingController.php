@@ -40,6 +40,10 @@ class BookingController extends Controller
             $query->where('status', Booking::STATUS_CONFIRMED);
         }
 
+        if ($request->has('payment_status')) {
+            $query->where('payment_status', $request->query('payment_status'));
+        }
+
         if ($request->has('date') || $request->boolean('all')) {
             $bookings = $query->orderBy('start_time', 'asc')->get();
             return response()->json([
@@ -62,6 +66,7 @@ class BookingController extends Controller
             'customer_name' => ['nullable', 'string', 'max:255'],
             'customer_phone' => ['nullable', 'string', 'max:20'],
             'notes' => ['nullable', 'string'],
+            'paid_amount' => ['nullable', 'numeric', 'min:0'],
             'is_paid' => ['nullable', 'boolean'],
         ]);
 
@@ -70,6 +75,7 @@ class BookingController extends Controller
             'customer_name' => $validated['customer_name'] ?? null,
             'customer_phone' => $validated['customer_phone'] ?? null,
             'notes' => $validated['notes'] ?? null,
+            'paid_amount' => $validated['paid_amount'] ?? 0,
             'is_paid' => $validated['is_paid'] ?? false,
         ];
 
@@ -99,13 +105,19 @@ class BookingController extends Controller
             'slots.*.start_time' => ['required', 'date_format:Y-m-d H:i:s'],
             'slots.*.end_time' => ['required', 'date_format:Y-m-d H:i:s'],
             'notes' => ['nullable', 'string'],
+            'paid_amount' => ['nullable', 'numeric', 'min:0'],
+            'is_paid' => ['nullable', 'boolean'],
         ]);
 
         $bookings = $bookingService->createBookingsBatch(
             $request->user(),
             $validated['court_id'],
             $validated['slots'],
-            ['notes' => $validated['notes'] ?? null]
+            [
+                'notes' => $validated['notes'] ?? null,
+                'paid_amount' => $validated['paid_amount'] ?? 0,
+                'is_paid' => $validated['is_paid'] ?? false,
+            ]
         );
 
         foreach ($bookings as $booking) {
@@ -144,8 +156,15 @@ class BookingController extends Controller
     }
 
     /**
-     * Atualiza o status de pagamento de um agendamento (pago/pendente).
+     * Registra quanto foi pago em um agendamento (valor em R$).
+     * O SISTEMA define automaticamente o payment_status:
+     * - pago: paid_amount >= total_price (valor exato da quadra)
+     * - pendente: 0 < paid_amount < total_price (pagou só X valor)
+     * - nao_pago: paid_amount = 0 (não pagou nada)
      * Apenas o gestor do complexo ou admin — o cliente não marca o próprio pagamento.
+     *
+     * Payload novo: { "paid_amount": 40 }
+     * Legado (compat): { "is_paid": true|false } — true quita total, false zera.
      */
     public function updatePayment(Request $request, Booking $booking): JsonResponse
     {
@@ -155,13 +174,37 @@ class BookingController extends Controller
         }
 
         $validated = $request->validate([
-            'is_paid' => ['required', 'boolean'],
+            'paid_amount' => ['nullable', 'numeric', 'min:0'],
+            'is_paid' => ['nullable', 'boolean'],
         ]);
 
-        $booking->update(['is_paid' => $validated['is_paid']]);
+        if (!array_key_exists('paid_amount', $validated) && !array_key_exists('is_paid', $validated)) {
+            return response()->json([
+                'message' => 'Informe o valor pago (paid_amount).',
+                'errors' => ['paid_amount' => ['Informe o valor pago (paid_amount).']],
+            ], 422);
+        }
+
+        // Resolve o valor pago: prioridade para paid_amount; is_paid legado como fallback.
+        if (array_key_exists('paid_amount', $validated) && $validated['paid_amount'] !== null) {
+            $paidAmount = round((float) $validated['paid_amount'], 2);
+        } elseif ($validated['is_paid'] ?? false) {
+            $paidAmount = (float) $booking->total_price; // quita total
+        } else {
+            $paidAmount = 0;
+        }
+
+        $booking->applyPaidAmount($paidAmount);
+        $booking->save();
+
+        $messages = [
+            Booking::PAYMENT_PAGO => 'Agendamento marcado como pago (valor integral recebido).',
+            Booking::PAYMENT_PENDENTE => 'Agendamento marcado como pendente (pagamento parcial de R$ ' . number_format((float) $booking->paid_amount, 2, ',', '.') . ' de R$ ' . number_format((float) $booking->total_price, 2, ',', '.') . ').',
+            Booking::PAYMENT_NAO_PAGO => 'Agendamento marcado como não pago.',
+        ];
 
         return response()->json([
-            'message' => $booking->is_paid ? 'Agendamento marcado como pago.' : 'Agendamento marcado como pendente.',
+            'message' => $messages[$booking->payment_status],
             'booking' => $booking->load(['court.venue', 'user']),
         ]);
     }

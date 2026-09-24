@@ -197,7 +197,14 @@ class BookingService
             );
             $totalPrice = round(($hourlyRate * $durationMinutes) / 60, 2);
 
-            // 10. Create Booking
+            // 10. Create Booking (pagamento: gestor informa paid_amount, sistema define status)
+            $paidAmount = round((float) ($extraParams['paid_amount'] ?? 0), 2);
+            // Compat: se vier is_paid=true legado sem paid_amount, assume valor integral.
+            if (($extraParams['is_paid'] ?? false) && $paidAmount <= 0) {
+                $paidAmount = $totalPrice;
+            }
+            $paymentStatus = Booking::resolvePaymentStatus($paidAmount, $totalPrice);
+
             return Booking::create([
                 'court_id' => $court->id,
                 'user_id' => $isManual ? null : $user->id,
@@ -208,8 +215,10 @@ class BookingService
                 'start_time' => $startTime,
                 'end_time' => $endTime,
                 'total_price' => $totalPrice,
+                'paid_amount' => $paidAmount,
+                'payment_status' => $paymentStatus,
                 'status' => Booking::STATUS_CONFIRMED,
-                'is_paid' => (bool) ($extraParams['is_paid'] ?? false),
+                'is_paid' => $paymentStatus === Booking::PAYMENT_PAGO,
             ]);
         });
     }
