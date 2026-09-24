@@ -109,5 +109,21 @@ class BookingConcurrencyTest extends TestCase
                     'status' => 'cancelled',
                 ],
             ]);
+
+        // 6. O slot voltou a ficar disponível após o cancelamento
+        $slotsAfterCancel = $this->getJson("/api/v1/courts/{$court->id}/available-slots?date={$nextMonday}");
+        $slotsAfterCancel->assertStatus(200);
+        $slot10After = collect($slotsAfterCancel->json('slots'))->firstWhere('formatted_time', '10:00 - 11:00');
+        $this->assertNotNull($slot10After);
+        $this->assertTrue($slot10After['available'], 'O horário 10:00-11:00 deveria estar disponível após o cancelamento');
+
+        // 7. Outro cliente pode reservar o mesmo horário depois do cancelamento
+        $bookingResponse3 = $this->actingAs($cliente2)
+            ->postJson('/api/v1/bookings', [
+                'court_id' => $court->id,
+                'start_time' => $bookingStart,
+                'end_time' => $bookingEnd,
+            ]);
+        $bookingResponse3->assertStatus(201);
     }
 }

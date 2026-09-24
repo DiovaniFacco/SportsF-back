@@ -6,6 +6,16 @@
 
         <title>{{ config('app.name', 'Laravel') }}</title>
 
+        {{-- PWA: manifest + cores + ícones --}}
+        <link rel="manifest" href="/manifest.webmanifest">
+        <meta name="theme-color" content="#16a34a">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-status-bar-style" content="default">
+        <meta name="apple-mobile-web-app-title" content="Quadras">
+        <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+        <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192x192.png">
+
         @fonts
 
         <!-- Styles / Scripts -->
@@ -219,5 +229,8 @@
         @if (Route::has('login'))
             <div class="h-14.5 hidden lg:block"></div>
         @endif
+
+        {{-- Popup instalar PWA --}}
+        <x-pwa-install />
     </body>
 </html>

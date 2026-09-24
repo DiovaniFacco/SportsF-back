@@ -36,6 +36,8 @@ class BookingController extends Controller
 
         if ($request->has('status')) {
             $query->where('status', $request->query('status'));
+        } elseif ($request->has('date') || $request->has('court_id')) {
+            $query->where('status', Booking::STATUS_CONFIRMED);
         }
 
         if ($request->has('date') || $request->boolean('all')) {
