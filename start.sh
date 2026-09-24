@@ -21,10 +21,13 @@ php artisan view:cache
 # Ensure storage link is created
 php artisan storage:link --force || true
 
-# Run database migrations and seeders
-echo "Running database migrations and seeders..."
+# Run database migrations only (no auto-seed).
+# O seed automático foi removido de propósito: ele recriava as quadras/
+# complexos genéricos por cima dos dados reais a cada deploy/restart.
+# Rode manualmente apenas se precisar dos dados essenciais
+# (admin, esportes, amenities): php artisan db:seed --force
+echo "Running database migrations..."
 php artisan migrate --force
-php artisan db:seed --force
 
 echo "Starting Apache on port ${PORT}..."
 exec apache2-foreground
