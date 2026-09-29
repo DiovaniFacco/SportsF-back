@@ -14,7 +14,7 @@ class BookingController extends Controller
     {
         $user = $request->user();
 
-        $query = Booking::with(['court.venue', 'user']);
+        $query = Booking::with(['court.venue', 'user', 'fixedSchedule']);
 
         if ($user->isGestor() && !$user->isAdmin()) {
             // Gestor sees bookings for courts in venues they own
@@ -68,6 +68,9 @@ class BookingController extends Controller
             'notes' => ['nullable', 'string'],
             'paid_amount' => ['nullable', 'numeric', 'min:0'],
             'is_paid' => ['nullable', 'boolean'],
+            // Lançar o dia de um horário fixo (só gestor via is_manual):
+            // materializa a ocorrência como agendamento normal, com pagamento.
+            'fixed_schedule_id' => ['nullable', 'integer', 'exists:court_fixed_schedules,id'],
         ]);
 
         $extraParams = [
@@ -77,6 +80,7 @@ class BookingController extends Controller
             'notes' => $validated['notes'] ?? null,
             'paid_amount' => $validated['paid_amount'] ?? 0,
             'is_paid' => $validated['is_paid'] ?? false,
+            'fixed_schedule_id' => $validated['fixed_schedule_id'] ?? null,
         ];
 
         $booking = $bookingService->createBooking(
@@ -89,7 +93,7 @@ class BookingController extends Controller
 
         return response()->json([
             'message' => 'Agendamento realizado com sucesso!',
-            'booking' => $booking->load(['court.venue', 'user']),
+            'booking' => $booking->load(['court.venue', 'user', 'fixedSchedule']),
         ], 201);
     }
 
@@ -141,7 +145,7 @@ class BookingController extends Controller
         }
 
         return response()->json([
-            'booking' => $booking->load(['court.venue', 'user']),
+            'booking' => $booking->load(['court.venue', 'user', 'fixedSchedule']),
         ]);
     }
 

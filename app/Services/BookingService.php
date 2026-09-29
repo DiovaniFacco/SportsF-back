@@ -176,8 +176,30 @@ class BookingService
 
             // 7.5 Validate Fixed Schedules (horário fixo semanal ocupa o slot).
             // Exceção desmarcada neste dia libera o horário para avulso.
+            // Vínculo explícito (lançar o dia, só gestor via is_manual): o booking
+            // materializa aquela ocorrência e não sofre o bloqueio do próprio fixo.
+            $linkedFixedId = $extraParams['fixed_schedule_id'] ?? null;
+            $linkedFixed = null;
+            if ($linkedFixedId && $isManual) {
+                $linkedFixed = CourtFixedSchedule::find($linkedFixedId);
+                if (!$linkedFixed || (int) $linkedFixed->court_id !== (int) $courtId) {
+                    throw ValidationException::withMessages([
+                        'fixed_schedule_id' => ['Horário fixo inválido para esta quadra.'],
+                    ]);
+                }
+                $occDate = $startTime->format('Y-m-d');
+                if (!$linkedFixed->appliesToDate($occDate)
+                    || $linkedFixed->isSkippedOn($occDate)
+                    || !$linkedFixed->overlaps($startTime, $endTime)) {
+                    throw ValidationException::withMessages([
+                        'fixed_schedule_id' => ['A data não corresponde a uma ocorrência válida deste horário fixo.'],
+                    ]);
+                }
+            }
+
             try {
                 $fixedConflict = CourtFixedSchedule::findForDate($courtId, $startTime->format('Y-m-d'))
+                    ->reject(fn (CourtFixedSchedule $f) => $linkedFixed && (int) $f->id === (int) $linkedFixed->id)
                     ->first(fn (CourtFixedSchedule $f) => $f->overlaps($startTime, $endTime));
             } catch (\Throwable) {
                 $fixedConflict = null;
@@ -231,6 +253,7 @@ class BookingService
 
             return Booking::create([
                 'court_id' => $court->id,
+                'court_fixed_schedule_id' => $linkedFixed?->id,
                 'user_id' => $isManual ? null : $user->id,
                 'customer_name' => $isManual ? $extraParams['customer_name'] : $user->name,
                 'customer_phone' => $isManual ? ($extraParams['customer_phone'] ?? null) : $user->phone,

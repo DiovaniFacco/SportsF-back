@@ -617,3 +617,28 @@ Reativa um dia desmarcado (o fixo volta a valer na data).
 Expande as próximas ocorrências da série (máx. 92 dias), indicando `skipped`.
 - **Autenticação:** Requer Token Bearer (Gestor ou Admin)
 
+### Lançar o dia (pagamento da ocorrência)
+Para marcar pago/pendente/não pago de **um dia** do fixo, o gestor cria um
+agendamento normal vinculado à série — ele entra em Agendamentos, Métricas e
+Faturamento como qualquer reserva, sem remover a série:
+
+### `POST /api/v1/bookings` com `fixed_schedule_id`
+- **Autenticação:** Requer Token Bearer (Gestor ou Admin, via `is_manual: true`)
+- O vínculo só é aceito se a data/horário corresponder a uma ocorrência válida
+  (dentro da vigência, no dia da semana, sem exceção). Cliente não consegue
+  usar o vínculo para furar o fixo.
+- **Payload:**
+```json
+{
+  "court_id": 1,
+  "start_time": "2026-10-07 19:00:00",
+  "end_time": "2026-10-07 20:00:00",
+  "is_manual": true,
+  "customer_name": "Time do João",
+  "paid_amount": 40,
+  "fixed_schedule_id": 3
+}
+```
+- A resposta inclui `booking.court_fixed_schedule_id` e `booking.fixed_schedule`;
+  `GET /bookings` também expõe o vínculo.
+

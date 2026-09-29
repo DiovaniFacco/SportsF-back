@@ -52,6 +52,15 @@ class CourtFixedSchedule extends Model
     }
 
     /**
+     * Dias lançados como agendamento normal (com pagamento).
+     * Materializam a ocorrência sem remover a série.
+     */
+    public function launchedBookings(): HasMany
+    {
+        return $this->hasMany(Booking::class, 'court_fixed_schedule_id');
+    }
+
+    /**
      * Verifica se a série vale para uma data (YYYY-MM-DD ou Carbon).
      * Checa is_active, dia da semana e janela de validade.
      * NÃO checa exceptions (use isSkipped / findForDate que já filtra).

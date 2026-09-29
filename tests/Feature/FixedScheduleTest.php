@@ -111,6 +111,87 @@ class FixedScheduleTest extends TestCase
         $this->assertTrue((bool) $slot19d['available']);
     }
 
+    public function test_launch_day_with_payment(): void
+    {
+        $gestor = User::factory()->create(['role' => User::ROLE_GESTOR]);
+        $court = $this->setupCourt($gestor);
+
+        $validFrom = Carbon::today()->format('Y-m-d');
+        $fixedId = $this->actingAs($gestor)->postJson("/api/v1/courts/{$court->id}/fixed-schedules", [
+            'day_of_week' => 1,
+            'start_time' => '19:00',
+            'end_time' => '20:00',
+            'customer_name' => 'Time do João',
+            'valid_from' => $validFrom,
+        ])->assertStatus(201)->json('data.id');
+
+        $monday = $this->nextWeekday(1)->format('Y-m-d');
+
+        // Gestor lança o dia como agendamento normal, com pagamento parcial
+        $launch = $this->actingAs($gestor)->postJson('/api/v1/bookings', [
+            'court_id' => $court->id,
+            'start_time' => "{$monday} 19:00:00",
+            'end_time' => "{$monday} 20:00:00",
+            'is_manual' => true,
+            'customer_name' => 'Time do João',
+            'paid_amount' => 40,
+            'fixed_schedule_id' => $fixedId,
+        ]);
+        $launch->assertStatus(201);
+        $booking = $launch->json('booking');
+        $this->assertEquals($fixedId, $booking['court_fixed_schedule_id']);
+        $this->assertEquals('pendente', $booking['payment_status']);
+
+        // O dia lançado aparece na lista do gestor com o vínculo
+        $list = $this->actingAs($gestor)->getJson("/api/v1/bookings?date={$monday}");
+        $list->assertStatus(200);
+        $found = collect($list->json('data'))->firstWhere('court_fixed_schedule_id', $fixedId);
+        $this->assertNotNull($found);
+
+        // Série continua: próxima segunda segue fixa e sem booking vinculado
+        $nextMonday = Carbon::parse($monday)->addWeek()->format('Y-m-d');
+        $slots = $this->getJson("/api/v1/courts/{$court->id}/available-slots?date={$nextMonday}&include_past=1");
+        $slot = collect($slots->json('slots'))->firstWhere('start_time', "{$nextMonday} 19:00:00");
+        $this->assertFalse((bool) $slot['available']);
+        $this->assertTrue((bool) $slot['is_fixed']);
+    }
+
+    public function test_cliente_cannot_bypass_fixed_with_link(): void
+    {
+        $gestor = User::factory()->create(['role' => User::ROLE_GESTOR]);
+        $court = $this->setupCourt($gestor);
+
+        $fixedId = $this->actingAs($gestor)->postJson("/api/v1/courts/{$court->id}/fixed-schedules", [
+            'day_of_week' => 1,
+            'start_time' => '19:00',
+            'end_time' => '20:00',
+            'customer_name' => 'Time do João',
+            'valid_from' => Carbon::today()->format('Y-m-d'),
+        ])->assertStatus(201)->json('data.id');
+
+        $monday = $this->nextWeekday(1)->format('Y-m-d');
+        $cliente = User::factory()->create(['role' => User::ROLE_CLIENTE]);
+
+        // Cliente tenta usar o vínculo para furar o fixo -> rejeitado
+        $this->actingAs($cliente)->postJson('/api/v1/bookings', [
+            'court_id' => $court->id,
+            'start_time' => "{$monday} 19:00:00",
+            'end_time' => "{$monday} 20:00:00",
+            'fixed_schedule_id' => $fixedId,
+        ])->assertStatus(422);
+
+        // Vínculo com data errada também é rejeitado (gestor)
+        $tuesday = Carbon::parse($monday)->addDay()->format('Y-m-d');
+        $this->actingAs($gestor)->postJson('/api/v1/bookings', [
+            'court_id' => $court->id,
+            'start_time' => "{$tuesday} 19:00:00",
+            'end_time' => "{$tuesday} 20:00:00",
+            'is_manual' => true,
+            'customer_name' => 'X',
+            'fixed_schedule_id' => $fixedId,
+        ])->assertStatus(422);
+    }
+
     public function test_fixed_overlap_rejected(): void
     {
         $gestor = User::factory()->create(['role' => User::ROLE_GESTOR]);
