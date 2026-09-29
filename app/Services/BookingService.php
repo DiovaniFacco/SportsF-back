@@ -220,6 +220,13 @@ class BookingService
             if (($extraParams['is_paid'] ?? false) && $paidAmount <= 0) {
                 $paidAmount = $totalPrice;
             }
+            // O valor pago nunca pode superar o total do agendamento:
+            // evita erro de digitação inflando o faturamento (métricas somam paid_amount).
+            if ($paidAmount > $totalPrice) {
+                throw ValidationException::withMessages([
+                    'paid_amount' => ['O valor pago (R$ ' . number_format($paidAmount, 2, ',', '.') . ') não pode ser maior que o valor total do agendamento (R$ ' . number_format($totalPrice, 2, ',', '.') . ').'],
+                ]);
+            }
             $paymentStatus = Booking::resolvePaymentStatus($paidAmount, $totalPrice);
 
             return Booking::create([
@@ -265,6 +272,17 @@ class BookingService
         if (empty($slots)) {
             throw ValidationException::withMessages([
                 'slots' => ['Informe ao menos um horário para reservar.'],
+            ]);
+        }
+
+        // paid_amount único não tem como ser distribuído entre os slots
+        // (cada um tem seu próprio total): aplicar o mesmo valor em cada
+        // reserva duplicaria a receita. O pagamento do lote deve ser
+        // registrado por agendamento, após a criação.
+        $batchPaid = round((float) ($extraParams['paid_amount'] ?? 0), 2);
+        if ($batchPaid > 0) {
+            throw ValidationException::withMessages([
+                'paid_amount' => ['Para reservas em lote, não informe o valor pago na criação: registre o pagamento em cada agendamento após a confirmação.'],
             ]);
         }
 
@@ -319,6 +337,12 @@ class BookingService
 
         $booking->update([
             'status' => Booking::STATUS_CANCELLED,
+            // Cancelamento estorna o pagamento: sem ele, o paid_amount ficaria
+            // registrado numa reserva cancelada e as métricas (que somam o valor
+            // pago) divergiriam do caixa real.
+            'paid_amount' => 0,
+            'payment_status' => Booking::PAYMENT_NAO_PAGO,
+            'is_paid' => false,
         ]);
 
         return $booking;

@@ -194,6 +194,15 @@ class BookingController extends Controller
             $paidAmount = 0;
         }
 
+        // Teto: valor pago não pode superar o total (mesma regra da criação).
+        $totalPrice = round((float) $booking->total_price, 2);
+        if ($paidAmount > $totalPrice) {
+            return response()->json([
+                'message' => 'O valor pago não pode ser maior que o valor total do agendamento.',
+                'errors' => ['paid_amount' => ['O valor pago (R$ ' . number_format($paidAmount, 2, ',', '.') . ') não pode ser maior que o valor total do agendamento (R$ ' . number_format($totalPrice, 2, ',', '.') . ').']],
+            ], 422);
+        }
+
         $booking->applyPaidAmount($paidAmount);
         $booking->save();
 
