@@ -77,24 +77,17 @@ class FixedScheduleService
             ]);
         }
 
-        // Alinhamento à grade (mesma regra do BookingService)
-        $slotDuration = $covering->slot_duration_minutes ?? 60;
+        // Duração livre (mesma regra do BookingService p/ gestor): a grade
+        // (slot_duration_minutes) é só intervalo de exibição. Ex: série
+        // 8:00-9:30 numa grade de 60min ocupa os dois slots por sobreposição.
         $refDate = '2000-01-01';
         $s = Carbon::parse("{$refDate} {$startStr}");
         $e = Carbon::parse("{$refDate} {$endStr}");
-        $opStart = Carbon::parse($refDate . ' ' . $covering->start_time);
         $durationMinutes = $s->diffInMinutes($e);
 
-        if ($durationMinutes % $slotDuration !== 0) {
+        if ($durationMinutes < 15) {
             throw ValidationException::withMessages([
-                'end_time' => ["A duração deve ser múltipla de {$slotDuration} minutos (grade da quadra)."],
-            ]);
-        }
-
-        $minutesFromOpStart = $opStart->diffInMinutes($s, false);
-        if ($minutesFromOpStart < 0 || $minutesFromOpStart % $slotDuration !== 0) {
-            throw ValidationException::withMessages([
-                'start_time' => ["O início deve ser alinhado à grade (a cada {$slotDuration} min a partir de " . substr((string) $covering->start_time, 0, 5) . ').'],
+                'end_time' => ['A duração mínima do horário fixo é de 15 minutos.'],
             ]);
         }
 

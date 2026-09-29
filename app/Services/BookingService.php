@@ -116,43 +116,70 @@ class BookingService
                 }
             }
 
-            // 5. Validate Operating Hours
+            // 5. Validate Operating Hours (suporta vários turnos no dia:
+            // o agendamento deve estar CONTIDO em um único turno, sem
+            // atravessar o intervalo entre turnos).
             $dayOfWeek = $startTime->dayOfWeek;
-            $operatingHour = OperatingHour::where('court_id', $courtId)
+            $shifts = OperatingHour::where('court_id', $courtId)
                 ->where('day_of_week', $dayOfWeek)
-                ->first();
+                ->orderBy('start_time')
+                ->get();
 
-            if (!$operatingHour) {
+            if ($shifts->isEmpty()) {
                 throw ValidationException::withMessages([
                     'start_time' => ['A quadra não possui horário de funcionamento cadastrado para este dia da semana.'],
                 ]);
             }
 
             $dateStr = $startTime->format('Y-m-d');
-            $opStart = Carbon::parse($dateStr . ' ' . $operatingHour->start_time);
-            $opEnd = Carbon::parse($dateStr . ' ' . $operatingHour->end_time);
+            $coveringShift = $shifts->first(function (OperatingHour $op) use ($dateStr, $startTime, $endTime) {
+                $opStart = Carbon::parse($dateStr . ' ' . $op->start_time);
+                $opEnd = Carbon::parse($dateStr . ' ' . $op->end_time);
+                return $startTime->gte($opStart) && $endTime->lte($opEnd);
+            });
 
-            if ($startTime->lt($opStart) || $endTime->gt($opEnd)) {
+            if (!$coveringShift) {
+                $ranges = $shifts->map(fn (OperatingHour $o) => substr((string) $o->start_time, 0, 5) . ' às ' . substr((string) $o->end_time, 0, 5))->join(', ');
                 throw ValidationException::withMessages([
-                    'start_time' => ["O agendamento deve estar dentro do horário de funcionamento ({$operatingHour->start_time} às {$operatingHour->end_time})."],
+                    'start_time' => ["O agendamento deve estar dentro de um turno de funcionamento deste dia ({$ranges}), sem atravessar o intervalo entre turnos."],
                 ]);
             }
 
-            // 6. Validate Strict Slot Alignment (Encaixe Padronizado nos Slots)
-            $slotDuration = $operatingHour->slot_duration_minutes ?? 60;
+            $opStart = Carbon::parse($dateStr . ' ' . $coveringShift->start_time);
+            $slotDuration = $coveringShift->slot_duration_minutes ?? 60;
             $durationMinutes = $startTime->diffInMinutes($endTime);
 
-            if ($durationMinutes % $slotDuration !== 0) {
-                throw ValidationException::withMessages([
-                    'end_time' => ["A duração do agendamento deve ser múltipla de {$slotDuration} minutos."],
-                ]);
-            }
+            // 6. Validação de duração / alinhamento.
+            // Grade (slot_duration_minutes) é só INTERVALO DE EXIBIÇÃO.
+            // - Cliente (app): mantém o encaixe estrito na grade, para não
+            //   fragmentar a agenda (reserva via multi-slot).
+            // - Gestor (balcão/manual): duração livre (ex: 1h30 numa grade
+            //   de 60min). A proteção contra duplo-booking é a checagem de
+            //   sobreposição do passo 8, que já bloqueia os slots atingidos.
+            if (!$isManual) {
+                if ($durationMinutes % $slotDuration !== 0) {
+                    throw ValidationException::withMessages([
+                        'end_time' => ["A duração do agendamento deve ser múltipla de {$slotDuration} minutos."],
+                    ]);
+                }
 
-            $minutesFromOpStart = $opStart->diffInMinutes($startTime, false);
-            if ($minutesFromOpStart < 0 || $minutesFromOpStart % $slotDuration !== 0) {
-                throw ValidationException::withMessages([
-                    'start_time' => ["O horário de início do agendamento deve ser alinhado com a grade de slots da quadra (a cada {$slotDuration} minutos a partir de {$operatingHour->start_time})."],
-                ]);
+                $minutesFromOpStart = $opStart->diffInMinutes($startTime, false);
+                if ($minutesFromOpStart < 0 || $minutesFromOpStart % $slotDuration !== 0) {
+                    throw ValidationException::withMessages([
+                        'start_time' => ["O horário de início do agendamento deve ser alinhado com a grade de slots da quadra (a cada {$slotDuration} minutos a partir de " . substr((string) $coveringShift->start_time, 0, 5) . ').'],
+                    ]);
+                }
+            } else {
+                if ($durationMinutes < 15) {
+                    throw ValidationException::withMessages([
+                        'end_time' => ['A duração mínima do agendamento é de 15 minutos.'],
+                    ]);
+                }
+                if ($startTime->second !== 0 || $endTime->second !== 0) {
+                    throw ValidationException::withMessages([
+                        'start_time' => ['Informe os horários com precisão de minuto (segundos zerados).'],
+                    ]);
+                }
             }
 
             // 7. Validate Court Blockouts (Bloqueio de Agenda por Manutenção/Eventos)
