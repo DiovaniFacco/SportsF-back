@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\CourtBlockoutController;
 use App\Http\Controllers\Api\CourtController;
 use App\Http\Controllers\Api\CourtPricingController;
+use App\Http\Controllers\Api\FixedScheduleController;
 use App\Http\Controllers\Api\HealthCheckController;
 use App\Http\Controllers\Api\OperatingHourController;
 use App\Http\Controllers\Api\SportController;
@@ -88,6 +89,17 @@ Route::prefix('v1')->group(function () {
             Route::get('/courts/{court}/blockouts', [CourtBlockoutController::class, 'index']);
             Route::post('/courts/{court}/blockouts', [CourtBlockoutController::class, 'store']);
             Route::delete('/blockouts/{blockout}', [CourtBlockoutController::class, 'destroy']);
+
+            // Fixed Schedules (Horários Fixos semanais recorrentes)
+            Route::get('/fixed-schedules', [FixedScheduleController::class, 'index']);
+            Route::get('/courts/{court}/fixed-schedules', [FixedScheduleController::class, 'index']);
+            Route::post('/courts/{court}/fixed-schedules', [FixedScheduleController::class, 'store']);
+            Route::get('/fixed-schedules/{fixedSchedule}', [FixedScheduleController::class, 'show']);
+            Route::put('/fixed-schedules/{fixedSchedule}', [FixedScheduleController::class, 'update']);
+            Route::delete('/fixed-schedules/{fixedSchedule}', [FixedScheduleController::class, 'destroy']);
+            Route::post('/fixed-schedules/{fixedSchedule}/exceptions', [FixedScheduleController::class, 'skip']);
+            Route::delete('/fixed-schedules/{fixedSchedule}/exceptions/{exception}', [FixedScheduleController::class, 'unskip']);
+            Route::get('/fixed-schedules/{fixedSchedule}/occurrences', [FixedScheduleController::class, 'occurrences']);
         });
 
         // Bookings Management

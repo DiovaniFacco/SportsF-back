@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Booking;
 use App\Models\Court;
 use App\Models\CourtBlockout;
+use App\Models\CourtFixedSchedule;
 use App\Models\OperatingHour;
 use App\Models\User;
 use Carbon\Carbon;
@@ -170,6 +171,22 @@ class BookingService
                 $reasonText = $hasBlockout->reason ? " Motivo: {$hasBlockout->reason}" : '';
                 throw ValidationException::withMessages([
                     'start_time' => ["Este horário está bloqueado pelo gestor para manutenção ou evento.{$reasonText}"],
+                ]);
+            }
+
+            // 7.5 Validate Fixed Schedules (horário fixo semanal ocupa o slot).
+            // Exceção desmarcada neste dia libera o horário para avulso.
+            try {
+                $fixedConflict = CourtFixedSchedule::findForDate($courtId, $startTime->format('Y-m-d'))
+                    ->first(fn (CourtFixedSchedule $f) => $f->overlaps($startTime, $endTime));
+            } catch (\Throwable) {
+                $fixedConflict = null;
+            }
+
+            if ($fixedConflict) {
+                $weekday = \App\Services\FixedScheduleService::weekdayLabel((int) $fixedConflict->day_of_week);
+                throw ValidationException::withMessages([
+                    'start_time' => ["Este horário é fixo de {$fixedConflict->customer_name} toda {$weekday} (" . substr((string) $fixedConflict->start_time, 0, 5) . ' às ' . substr((string) $fixedConflict->end_time, 0, 5) . '). Escolha outro horário.'],
                 ]);
             }
 

@@ -14,6 +14,7 @@
 6. [Agendamentos (Bookings)](#6-agendamentos-bookings)
 7. [Precificação Flexível (Horários Nobres & Datas Especiais)](#7-precificação-flexível-horários-nobres--datas-especiais)
 8. [Bloqueios de Agenda (Manutenção / Eventos)](#8-bloqueios-de-agenda-manutenção--eventos)
+9. [Horários Fixos (Aulas / Mensalistas)](#9-horários-fixos-aulas--mensalistas)
 
 ---
 
@@ -552,5 +553,67 @@ Bloqueia um período da agenda por manutenção, torneio ou chuva.
 
 ### `DELETE /api/v1/blockouts/{id}`
 Remove um bloqueio de agenda e libera os horários.
+- **Autenticação:** Requer Token Bearer (Gestor ou Admin)
+
+---
+
+## 9. Horários Fixos (Aulas / Mensalistas)
+
+Recorrência semanal **virtual** (sem materializar reservas): ex. toda
+segunda 19:00–20:00 do "Time do João". O slot aparece como ocupado
+(`available: false`, `is_fixed: true`) em `available-slots` e o `POST
+/bookings` rejeita conflito com mensagem amigável. Desmarcar **um dia**
+cria uma exceção (a série continua); excluir remove a série toda.
+
+- `day_of_week`: 0=domingo … 6=sábado (igual `operating_hours`)
+- `start_time`/`end_time`: `HH:mm`, mesmo dia, alinhados à grade da quadra
+- `valid_from` obrigatório (`YYYY-MM-DD`, hoje ou futuro); `valid_until` opcional (null = sem fim)
+
+### `GET /api/v1/courts/{court_id}/fixed-schedules`
+Lista as séries fixas da quadra (com `exceptions`).
+- **Autenticação:** Requer Token Bearer (Gestor ou Admin)
+
+### `POST /api/v1/courts/{court_id}/fixed-schedules`
+Cria uma série fixa semanal.
+- **Autenticação:** Requer Token Bearer (Gestor ou Admin)
+- **Payload:**
+```json
+{
+  "day_of_week": 1,
+  "start_time": "19:00",
+  "end_time": "20:00",
+  "customer_name": "Time do João",
+  "customer_phone": "11999990000",
+  "valid_from": "2026-09-29",
+  "valid_until": null,
+  "notes": "mensalista"
+}
+```
+
+### `PUT /api/v1/fixed-schedules/{id}`
+Atualiza a série (dia, horário, cliente, vigência, `is_active`).
+- **Autenticação:** Requer Token Bearer (Gestor ou Admin)
+
+### `DELETE /api/v1/fixed-schedules/{id}`
+Exclui a série toda e libera as ocorrências futuras.
+- **Autenticação:** Requer Token Bearer (Gestor ou Admin)
+
+### `POST /api/v1/fixed-schedules/{id}/exceptions`
+Desmarca **só um dia** (ex: feriado). A série continua nos demais dias.
+- **Autenticação:** Requer Token Bearer (Gestor ou Admin)
+- **Payload:**
+```json
+{
+  "date": "2026-10-05",
+  "reason": "Feriado / folga"
+}
+```
+
+### `DELETE /api/v1/fixed-schedules/{id}/exceptions/{exceptionId}`
+Reativa um dia desmarcado (o fixo volta a valer na data).
+- **Autenticação:** Requer Token Bearer (Gestor ou Admin)
+
+### `GET /api/v1/fixed-schedules/{id}/occurrences?from=YYYY-MM-DD&to=YYYY-MM-DD`
+Expande as próximas ocorrências da série (máx. 92 dias), indicando `skipped`.
 - **Autenticação:** Requer Token Bearer (Gestor ou Admin)
 

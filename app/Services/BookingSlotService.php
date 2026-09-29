@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Booking;
 use App\Models\Court;
 use App\Models\CourtBlockout;
+use App\Models\CourtFixedSchedule;
 use App\Models\CourtPricingRule;
 use App\Models\CourtSpecialPrice;
 use App\Models\OperatingHour;
@@ -69,6 +70,15 @@ class BookingSlotService
         $blockouts = CourtBlockout::where('court_id', $court->id)
             ->overlapping($overallStart, $overallEnd)
             ->get();
+
+        // Horários fixos (recorrência semanal virtual) que valem nesta data.
+        // Já exclui as ocorrências desmarcadas só neste dia (exceptions).
+        try {
+            $fixedSchedules = CourtFixedSchedule::findForDate($court->id, $dateStr);
+        } catch (\Throwable) {
+            // Tabela ainda não migrada: trata como sem fixos
+            $fixedSchedules = collect();
+        }
 
         // Bloqueio indeterminado ativo para a data consultada:
         // usuário comum nem deve ver os horários — retorna aviso.
@@ -140,6 +150,13 @@ class BookingSlotService
 
                 $isBlocked = $activeBlockout !== null;
 
+                // Check if this slot overlaps with a fixed schedule (horário fixo semanal).
+                // Desmarcado neste dia (exception) já foi filtrado em findForDate.
+                $activeFixed = $fixedSchedules->first(function (CourtFixedSchedule $fixed) use ($currentStart, $currentEnd) {
+                    return $fixed->overlaps($currentStart, $currentEnd);
+                });
+                $isFixed = $activeFixed !== null;
+
                 $hourlyRate = $this->determineHourlyRate($court, $dateStr, $dayOfWeek, $currentStart, $currentEnd, $specialPrice, $pricingRules);
                 $price = round(($hourlyRate * $slotDuration) / 60, 2);
 
@@ -148,13 +165,18 @@ class BookingSlotService
                     'end_time' => $currentEnd->format('Y-m-d H:i:s'),
                     'formatted_time' => $currentStart->format('H:i') . ' - ' . $currentEnd->format('H:i'),
                     'price' => $price,
-                    'available' => !$isBooked && !$isBlocked,
+                    'available' => !$isBooked && !$isBlocked && !$isFixed,
                     'blocked' => $isBlocked,
                     'block_reason' => $activeBlockout?->reason,
                     // IDs para o gestor conseguir desbloquear direto pelo slot,
                     // mesmo quando o bloqueio abrange vários horários.
                     'block_id' => $activeBlockout?->id,
                     'blockout_id' => $activeBlockout?->id,
+                    // Horário fixo: ocupa o slot como "Reservado" (não bloqueado),
+                    // com dados para o gestor desmarcar só o dia ou a série.
+                    'is_fixed' => $isFixed,
+                    'fixed_schedule_id' => $activeFixed?->id,
+                    'fixed_customer_name' => $activeFixed?->customer_name,
                 ];
 
                 $currentStart->addMinutes($slotDuration);

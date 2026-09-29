@@ -62,6 +62,7 @@ Este documento consolida as regras de negócio, permissões e fluxos operacionai
 
 - **Bloqueio de Agenda (Manutenção/Eventos):** O gestor pode fechar quadras ou horários específicos para manutenção, reforma, chuva ou campeonatos internos.
 - **Agendamento Presencial / WhatsApp:** O gestor pode registrar agendamentos manuais diretamente no painel administrativo para clientes que entrarem em contato por telefone ou WhatsApp, ocupando a vaga na agenda.
+- **Horário Fixo (Aula / Mensalista):** O gestor pode fixar um horário semanal recorrente (ex. toda segunda 19:00–20:00 do "Time do João"). O horário aparece sempre ocupado para clientes e gestores; reservas avulsas no mesmo horário são rejeitadas. O gestor pode **desmarcar um único dia** (exceção — a série continua) ou **excluir a série toda**. A série deve estar dentro da grade de funcionamento e alinhada aos slots da quadra; não pode sobrepor outra série fixa nem colidir com reservas avulsas já confirmadas nas próximas ocorrências.
 
 ---
 

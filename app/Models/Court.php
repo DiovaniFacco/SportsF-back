@@ -140,6 +140,11 @@ class Court extends Model
         return $this->hasMany(CourtBlockout::class);
     }
 
+    public function fixedSchedules(): HasMany
+    {
+        return $this->hasMany(CourtFixedSchedule::class);
+    }
+
     /**
      * Bloqueio indeterminado ativo (start_time <= agora).
      * Usado para avisar o usuário comum que a quadra está indisponível
