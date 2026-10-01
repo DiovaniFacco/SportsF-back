@@ -16,12 +16,15 @@ class BookingController extends Controller
 
         $query = Booking::with(['court.venue', 'user', 'fixedSchedule']);
 
-        if ($user->isGestor() && !$user->isAdmin()) {
-            // Gestor sees bookings for courts in venues they own
-            $query->whereHas('court.venue', function ($q) use ($user) {
-                $q->where('user_id', $user->id);
+        if ($user->isAdmin()) {
+            // Admin vê tudo.
+        } elseif ($user->isGestor() || $user->isFuncionario()) {
+            // Gestor vê complexos próprios; funcionário vê complexos vinculados.
+            $venueIds = $user->operableVenueIds() ?? [];
+            $query->whereHas('court.venue', function ($q) use ($venueIds) {
+                $q->whereIn('venues.id', $venueIds);
             });
-        } elseif (!$user->isAdmin()) {
+        } else {
             // Cliente sees their own bookings
             $query->where('user_id', $user->id);
         }
@@ -140,7 +143,7 @@ class BookingController extends Controller
     public function show(Request $request, Booking $booking): JsonResponse
     {
         $user = $request->user();
-        if (!$user->isAdmin() && $booking->user_id !== $user->id && $booking->court->venue->user_id !== $user->id) {
+        if (!$user->isAdmin() && $booking->user_id !== $user->id && !$user->canOperateCourt($booking->court)) {
             return response()->json(['message' => 'Você não tem permissão para visualizar este agendamento.'], 403);
         }
 
@@ -173,7 +176,7 @@ class BookingController extends Controller
     public function updatePayment(Request $request, Booking $booking): JsonResponse
     {
         $user = $request->user();
-        if (!$user->isAdmin() && $booking->court->venue->user_id !== $user->id) {
+        if (!$user->canOperateCourt($booking->court)) {
             return response()->json(['message' => 'Você não tem permissão para alterar o pagamento deste agendamento.'], 403);
         }
 

@@ -29,7 +29,7 @@ class CourtPricingController extends Controller
     public function storeRule(Request $request, Court $court): JsonResponse
     {
         $user = $request->user();
-        if (!$user->isAdmin() && $court->venue->user_id !== $user->id) {
+        if (!$user->canOperateCourt($court)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Você não tem permissão para gerenciar a precificação desta quadra.'
@@ -73,7 +73,7 @@ class CourtPricingController extends Controller
     public function destroyRule(Request $request, CourtPricingRule $pricingRule): JsonResponse
     {
         $user = $request->user();
-        if (!$user->isAdmin() && $pricingRule->court->venue->user_id !== $user->id) {
+        if (!$user->canOperateCourt($pricingRule->court)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Você não tem permissão para remover esta regra.'
@@ -106,7 +106,7 @@ class CourtPricingController extends Controller
     public function storeSpecialPrice(Request $request, Court $court): JsonResponse
     {
         $user = $request->user();
-        if (!$user->isAdmin() && $court->venue->user_id !== $user->id) {
+        if (!$user->canOperateCourt($court)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Você não tem permissão para gerenciar a precificação desta quadra.'
@@ -144,7 +144,7 @@ class CourtPricingController extends Controller
     public function destroySpecialPrice(Request $request, CourtSpecialPrice $specialPrice): JsonResponse
     {
         $user = $request->user();
-        if (!$user->isAdmin() && $specialPrice->court->venue->user_id !== $user->id) {
+        if (!$user->canOperateCourt($specialPrice->court)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Você não tem permissão para remover este preço especial.'

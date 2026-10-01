@@ -85,6 +85,8 @@ class AuthController extends Controller
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
+        $user->loadMissing('staffVenues:id');
+
         return response()->json([
             'message' => 'Login realizado com sucesso',
             'user' => $user,
@@ -196,6 +198,8 @@ class AuthController extends Controller
             $user->role = User::ROLE_GESTOR;
             $user->save();
         }
+
+        $user->loadMissing('staffVenues:id');
 
         return response()->json([
             'user' => $user,

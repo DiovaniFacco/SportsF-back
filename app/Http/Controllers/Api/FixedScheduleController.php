@@ -16,7 +16,7 @@ class FixedScheduleController extends Controller
     private function ensureManager(Request $request, Court $court): ?JsonResponse
     {
         $user = $request->user();
-        if (!$user->isAdmin() && $court->venue->user_id !== $user->id) {
+        if (!$user->canOperateCourt($court)) {
             return response()->json(['message' => 'Você não tem permissão para gerenciar horários fixos nesta quadra.'], 403);
         }
         return null;
@@ -25,7 +25,7 @@ class FixedScheduleController extends Controller
     private function ensureManagerOfFixed(Request $request, CourtFixedSchedule $fixed): ?JsonResponse
     {
         $user = $request->user();
-        if (!$user->isAdmin() && $fixed->court->venue->user_id !== $user->id) {
+        if (!$user->canOperateCourt($fixed->court)) {
             return response()->json(['message' => 'Você não tem permissão para gerenciar este horário fixo.'], 403);
         }
         return null;
@@ -49,7 +49,8 @@ class FixedScheduleController extends Controller
             }
             $query->where('court_id', $c->id);
         } elseif (!$user->isAdmin()) {
-            $courtIds = Court::whereHas('venue', fn ($q) => $q->where('user_id', $user->id))->pluck('id');
+            $venueIds = $user->operableVenueIds() ?? [];
+            $courtIds = Court::whereHas('venue', fn ($q) => $q->whereIn('venues.id', $venueIds))->pluck('id');
             $query->whereIn('court_id', $courtIds);
         }
 

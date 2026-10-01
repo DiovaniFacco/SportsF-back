@@ -21,8 +21,9 @@ class CourtBlockoutController extends Controller
             $query->where('court_id', $request->query('court_id'));
         } else if ($user) {
             if (!$user->isAdmin()) {
-                $courtIds = Court::whereHas('venue', function ($q) use ($user) {
-                    $q->where('user_id', $user->id);
+                $venueIds = $user->operableVenueIds() ?? [];
+                $courtIds = Court::whereHas('venue', function ($q) use ($venueIds) {
+                    $q->whereIn('venues.id', $venueIds);
                 })->pluck('id');
                 $query->whereIn('court_id', $courtIds);
             }
@@ -59,7 +60,7 @@ class CourtBlockoutController extends Controller
     public function store(Request $request, Court $court): JsonResponse
     {
         $user = $request->user();
-        if (!$user->isAdmin() && $court->venue->user_id !== $user->id) {
+        if (!$user->canOperateCourt($court)) {
             return response()->json(['message' => 'Você não tem permissão para gerenciar bloqueios nesta quadra.'], 403);
         }
 
@@ -117,8 +118,7 @@ class CourtBlockoutController extends Controller
     public function destroy(Request $request, CourtBlockout $blockout): JsonResponse
     {
         $user = $request->user();
-        $venueUserId = $blockout->court?->venue?->user_id;
-        if (!$user->isAdmin() && $venueUserId !== $user->id) {
+        if (!$user->canOperateCourt($blockout->court)) {
             return response()->json(['message' => 'Você não tem permissão para remover este bloqueio.'], 403);
         }
 

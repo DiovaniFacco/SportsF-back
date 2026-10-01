@@ -28,7 +28,7 @@ class OperatingHourController extends Controller
     public function store(Request $request, Court $court): JsonResponse
     {
         $user = $request->user();
-        if (!$user->isAdmin() && $court->venue->user_id !== $user->id) {
+        if (!$user->canOperateCourt($court)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Você não tem permissão para gerenciar horários desta quadra.'
@@ -104,7 +104,7 @@ class OperatingHourController extends Controller
     public function destroy(Request $request, OperatingHour $operatingHour): JsonResponse
     {
         $user = $request->user();
-        if (!$user->isAdmin() && $operatingHour->court->venue->user_id !== $user->id) {
+        if (!$user->canOperateCourt($operatingHour->court)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Você não tem permissão para remover este turno.'

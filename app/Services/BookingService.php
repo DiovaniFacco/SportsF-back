@@ -54,11 +54,11 @@ class BookingService
             ]);
         }
 
-        // If manual booking, verify that user is Gestor or Admin
+        // If manual booking, verify that user is Gestor/Funcionario or Admin
         if ($isManual) {
-            if (!$user->isGestor() && !$user->isAdmin()) {
+            if (!$user->isGestor() && !$user->isFuncionario() && !$user->isAdmin()) {
                 throw ValidationException::withMessages([
-                    'is_manual' => ['Apenas gestores ou administradores podem realizar agendamentos manuais/presenciais.'],
+                    'is_manual' => ['Apenas a equipe do complexo (gestor, funcionário ou administrador) pode realizar agendamentos manuais/presenciais.'],
                 ]);
             }
             if (empty($extraParams['customer_name'])) {
@@ -78,8 +78,8 @@ class BookingService
                 ]);
             }
 
-            // If manual booking by gestor, check ownership of venue unless Admin
-            if ($isManual && !$user->isAdmin() && $court->venue->user_id !== $user->id) {
+            // If manual booking by staff, check vínculo com o complexo unless Admin
+            if ($isManual && !$user->canOperateCourt($court)) {
                 throw ValidationException::withMessages([
                     'court_id' => ['Você não tem permissão para gerenciar agendamentos nesta quadra.'],
                 ]);
@@ -356,7 +356,8 @@ class BookingService
      */
     public function cancelBooking(User $user, Booking $booking): Booking
     {
-        if (!$user->isAdmin() && $user->id !== $booking->user_id && $user->id !== $booking->court?->venue?->user_id) {
+        $isOperator = $user->canOperateCourt($booking->court);
+        if (!$user->isAdmin() && $user->id !== $booking->user_id && !$isOperator) {
             throw ValidationException::withMessages([
                 'booking' => ['Você não tem permissão para cancelar este agendamento.'],
             ]);
@@ -368,8 +369,8 @@ class BookingService
             ]);
         }
 
-        // Se for cliente, validar antecedência de cancelamento
-        if (!$user->isAdmin() && $user->id !== $booking->court?->venue?->user_id) {
+        // Se for cliente (não é da equipe do complexo), validar antecedência de cancelamento
+        if (!$isOperator && !$user->isAdmin()) {
             $cancelLimitHours = $booking->court?->venue?->cancel_limit_hours ?? 0;
             if ($cancelLimitHours > 0) {
                 $limitTime = now()->addHours($cancelLimitHours);

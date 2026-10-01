@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\SportController;
 use App\Http\Controllers\Api\VenueController;
 use App\Http\Controllers\Api\VenueCoverUploadController;
 use App\Http\Controllers\Api\VenueReviewController;
+use App\Http\Controllers\Api\VenueStaffController;
 use App\Http\Middleware\CheckRole;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
@@ -64,9 +65,15 @@ Route::prefix('v1')->group(function () {
             Route::get('/users', [AuthController::class, 'indexUsers']);
             Route::post('/venues', [VenueController::class, 'store']);
             Route::delete('/venues/{venue}', [VenueController::class, 'destroy']);
+
+            // Funcionários do complexo (vínculo por complexo) - só Admin gerencia
+            Route::get('/venues/{venue}/staff', [VenueStaffController::class, 'index']);
+            Route::post('/venues/{venue}/staff', [VenueStaffController::class, 'store']);
+            Route::delete('/venues/{venue}/staff/{user}', [VenueStaffController::class, 'destroy']);
         });
 
         // Venues & Courts Management (Gestor / Admin)
+        // Funcionário NÃO entra aqui: não pode editar complexo nem criar/editar/excluir quadra.
         Route::middleware(CheckRole::class . ':' . User::ROLE_GESTOR . ',' . User::ROLE_ADMIN)->group(function () {
             Route::put('/venues/{venue}', [VenueController::class, 'update']);
             Route::post('/venues/cover-upload', VenueCoverUploadController::class);
@@ -78,7 +85,12 @@ Route::prefix('v1')->group(function () {
             Route::post('/venues/{venue}/courts', [CourtController::class, 'store']);
             Route::put('/courts/{court}', [CourtController::class, 'update']);
             Route::delete('/courts/{court}', [CourtController::class, 'destroy']);
+        });
 
+        // Operação da agenda (Gestor / Admin / Funcionário vinculado)
+        // Funcionário PODE: horários, preços, bloqueios, fixos.
+        // A verificação do vínculo por complexo acontece dentro dos controllers/services.
+        Route::middleware(CheckRole::class . ':' . User::ROLE_GESTOR . ',' . User::ROLE_ADMIN . ',' . User::ROLE_FUNCIONARIO)->group(function () {
             Route::post('/courts/{court}/operating-hours', [OperatingHourController::class, 'store']);
             Route::delete('/operating-hours/{operatingHour}', [OperatingHourController::class, 'destroy']);
 

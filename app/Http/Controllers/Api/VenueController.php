@@ -13,7 +13,7 @@ class VenueController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Venue::with(['courts.sports', 'courts.sport', 'courts.operatingHours', 'courts.activeIndefiniteBlockout', 'amenities', 'reviews', 'owner']);
+        $query = Venue::with(['courts.sports', 'courts.sport', 'courts.operatingHours', 'courts.activeIndefiniteBlockout', 'amenities', 'reviews', 'owner', 'staff']);
 
         if ($request->filled('city')) {
             $city = trim($request->query('city'));
@@ -76,6 +76,13 @@ class VenueController extends Controller
             'new_manager.email' => ['required_with:new_manager', 'email', 'max:255', 'unique:users,email'],
             'new_manager.password' => ['required_with:new_manager', 'string', 'min:8'],
             'new_manager.phone' => ['nullable', 'string', 'max:20'],
+            'staff_ids' => ['nullable', 'array'],
+            'staff_ids.*' => ['exists:users,id'],
+            'new_staff' => ['nullable', 'array'],
+            'new_staff.name' => ['required_with:new_staff', 'string', 'max:255'],
+            'new_staff.email' => ['required_with:new_staff', 'email', 'max:255', 'unique:users,email'],
+            'new_staff.password' => ['required_with:new_staff', 'string', 'min:8'],
+            'new_staff.phone' => ['nullable', 'string', 'max:20'],
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'address' => ['required', 'string', 'max:255'],
@@ -116,26 +123,31 @@ class VenueController extends Controller
             }
         }
 
+        $newStaffData = $validated['new_staff'] ?? null;
         unset($validated['new_manager']);
+        unset($validated['new_staff']);
         $validated['user_id'] = $ownerId;
 
         $amenityIds = $validated['amenity_ids'] ?? [];
         unset($validated['amenity_ids']);
+        $staffIds = $validated['staff_ids'] ?? [];
+        unset($validated['staff_ids']);
 
         $venue = Venue::create($validated);
         if (!empty($amenityIds)) {
             $venue->amenities()->sync($amenityIds);
         }
+        $this->syncStaff($venue, $staffIds, $newStaffData);
 
         return response()->json([
             'message' => 'Espaço criado com sucesso',
-            'venue' => $venue->load(['courts.sports', 'courts.sport', 'amenities', 'reviews', 'owner']),
+            'venue' => $venue->load(['courts.sports', 'courts.sport', 'amenities', 'reviews', 'owner', 'staff']),
         ], 201);
     }
 
     public function show(string $identifier): JsonResponse
     {
-        $query = Venue::with(['courts.sports', 'courts.sport', 'courts.operatingHours', 'courts.activeIndefiniteBlockout', 'amenities', 'reviews', 'owner']);
+        $query = Venue::with(['courts.sports', 'courts.sport', 'courts.operatingHours', 'courts.activeIndefiniteBlockout', 'amenities', 'reviews', 'owner', 'staff']);
 
         if (is_numeric($identifier)) {
             $venue = $query->find((int) $identifier);
@@ -171,6 +183,13 @@ class VenueController extends Controller
             'new_manager.email' => ['required_with:new_manager', 'email', 'max:255', 'unique:users,email'],
             'new_manager.password' => ['required_with:new_manager', 'string', 'min:8'],
             'new_manager.phone' => ['nullable', 'string', 'max:20'],
+            'staff_ids' => ['nullable', 'array'],
+            'staff_ids.*' => ['exists:users,id'],
+            'new_staff' => ['nullable', 'array'],
+            'new_staff.name' => ['required_with:new_staff', 'string', 'max:255'],
+            'new_staff.email' => ['required_with:new_staff', 'email', 'max:255', 'unique:users,email'],
+            'new_staff.password' => ['required_with:new_staff', 'string', 'min:8'],
+            'new_staff.phone' => ['nullable', 'string', 'max:20'],
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'address' => ['sometimes', 'required', 'string', 'max:255'],
@@ -211,16 +230,27 @@ class VenueController extends Controller
             // Apenas ADMIN pode alternar o modo do complexo (completo/simplificado).
             // O gestor configura apenas o WhatsApp e demais dados operacionais.
             unset($validated['mode']);
+            unset($validated['staff_ids']);
+            unset($validated['new_staff']);
         }
 
+        $newStaffData = $validated['new_staff'] ?? null;
         unset($validated['new_manager']);
+        unset($validated['new_staff']);
 
         if (isset($validated['amenity_ids'])) {
             $venue->amenities()->sync($validated['amenity_ids']);
             unset($validated['amenity_ids']);
         }
 
+        $staffIds = $validated['staff_ids'] ?? null;
+        unset($validated['staff_ids']);
+
         $venue->update($validated);
+
+        if ($user->isAdmin() && ($staffIds !== null || $newStaffData)) {
+            $this->syncStaff($venue, $staffIds ?? [], $newStaffData, true);
+        }
 
         if ($venue->user_id) {
             $owner = User::find($venue->user_id);
@@ -232,7 +262,7 @@ class VenueController extends Controller
 
         return response()->json([
             'message' => 'Espaço atualizado com sucesso',
-            'venue' => $venue->load(['courts.sports', 'courts.sport', 'amenities', 'reviews', 'owner']),
+            'venue' => $venue->load(['courts.sports', 'courts.sport', 'amenities', 'reviews', 'owner', 'staff']),
         ]);
     }
 
@@ -248,5 +278,54 @@ class VenueController extends Controller
         return response()->json([
             'message' => 'Espaço removido com sucesso',
         ]);
+    }
+
+    /**
+     * Sincroniza funcionários do complexo.
+     * Promove CLIENTE -> FUNCIONARIO ao vincular. Quando $detaching,
+     * substitui a lista (PUT); senão, só adiciona (POST).
+     */
+    private function syncStaff(Venue $venue, array $staffIds, ?array $newStaffData, bool $detaching = false): void
+    {
+        $ids = [];
+        foreach ($staffIds as $id) {
+            $staffUser = User::find($id);
+            if (!$staffUser || $staffUser->isAdmin()) {
+                continue;
+            }
+            if ($staffUser->role === User::ROLE_CLIENTE) {
+                $staffUser->role = User::ROLE_FUNCIONARIO;
+                $staffUser->save();
+            }
+            $ids[] = $staffUser->id;
+        }
+
+        if (!empty($newStaffData)) {
+            $created = User::create([
+                'name' => $newStaffData['name'],
+                'email' => $newStaffData['email'],
+                'password' => Hash::make($newStaffData['password']),
+                'phone' => $newStaffData['phone'] ?? null,
+                'role' => User::ROLE_FUNCIONARIO,
+            ]);
+            $ids[] = $created->id;
+        }
+
+        if ($detaching) {
+            $previousIds = $venue->staff()->pluck('users.id')->all();
+            $venue->staff()->sync($ids);
+            $detached = array_diff($previousIds, $ids);
+            foreach ($detached as $detachedId) {
+                $detachedUser = User::find($detachedId);
+                if ($detachedUser && $detachedUser->role === User::ROLE_FUNCIONARIO
+                    && !$detachedUser->staffVenues()->exists()
+                    && !$detachedUser->venues()->exists()) {
+                    $detachedUser->role = User::ROLE_CLIENTE;
+                    $detachedUser->save();
+                }
+            }
+        } elseif (!empty($ids)) {
+            $venue->staff()->syncWithoutDetaching($ids);
+        }
     }
 }

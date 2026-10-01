@@ -89,6 +89,14 @@ class Venue extends Model
         return $this->belongsTo(User::class, 'user_id');
     }
 
+    /**
+     * Funcionários vinculados ao complexo (pivot venue_staff).
+     */
+    public function staff(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'venue_staff')->withTimestamps();
+    }
+
     public function courts(): HasMany
     {
         return $this->hasMany(Court::class);
