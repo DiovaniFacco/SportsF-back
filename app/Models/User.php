@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use App\Notifications\ResetPasswordPtBr;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
@@ -59,6 +60,15 @@ class User extends Authenticatable
     public function venues(): HasMany
     {
         return $this->hasMany(Venue::class);
+    }
+
+    /**
+     * Envia o e-mail de recuperação em PT-BR com link para o front
+     * (FRONTEND_URL + /redefinir-senha?token=…&email=…).
+     */
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify(new ResetPasswordPtBr($token, $this->email));
     }
 
     public function bookings(): HasMany

@@ -204,6 +204,7 @@ class QaFixesTest extends TestCase
             'name' => 'Tentando Gestor',
             'email' => 'quero-ser-gestor@qa.test',
             'password' => 'senha123456',
+            'password_confirmation' => 'senha123456',
             'role' => User::ROLE_GESTOR,
         ]);
 

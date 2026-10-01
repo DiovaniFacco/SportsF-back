@@ -21,11 +21,16 @@ Route::prefix('v1')->group(function () {
     // Healthcheck
     Route::get('/health', HealthCheckController::class);
 
-    // Authentication Public Routes (Rate Limited to 6 requests/minute)
-    Route::middleware('throttle:6,1')->group(function () {
+    // Authentication Public Routes (throttle nomeado: rajada por IP + cota por conta/dia)
+    Route::middleware('throttle:auth')->group(function () {
         Route::post('/auth/register', [AuthController::class, 'register']);
         Route::post('/auth/login', [AuthController::class, 'login']);
-        Route::post('/auth/google', [AuthController::class, 'googleAuth']);
+        Route::post('/auth/reset-password', [AuthController::class, 'resetPassword']);
+    });
+
+    // Throttle dedicado anti-spam de e-mails de recuperação
+    Route::middleware('throttle:forgot')->group(function () {
+        Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword']);
     });
 
     // Public Categories & Metadata Routes
@@ -47,7 +52,9 @@ Route::prefix('v1')->group(function () {
         // Auth Management
         Route::get('/auth/me', [AuthController::class, 'me']);
         Route::put('/auth/me', [AuthController::class, 'updateProfile']);
+        Route::put('/auth/password', [AuthController::class, 'changePassword']);
         Route::post('/auth/logout', [AuthController::class, 'logout']);
+        Route::post('/auth/logout-all', [AuthController::class, 'logoutAll']);
 
         // Submit Venue Review
         Route::post('/venues/{venue}/reviews', [VenueReviewController::class, 'store']);

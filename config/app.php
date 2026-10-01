@@ -54,6 +54,10 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    // URL pública do front (web Expo). Usada para montar o link do
+    // e-mail de recuperação: FRONTEND_URL + /redefinir-senha?token=…&email=…
+    'frontend_url' => env('FRONTEND_URL', 'http://localhost:8081'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone

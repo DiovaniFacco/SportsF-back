@@ -50,13 +50,14 @@ Para tornar alguém gestor de um complexo, um `ADMIN` deve vincular o
 usuário como dono via `POST /api/v1/venues` (`user_id` ou `new_manager`) —
 o dono é promovido automaticamente a `GESTOR_ESPACO`.
 
-- **Autenticação:** Pública
+- **Autenticação:** Pública (throttle `auth`: 10/min por IP + 60/dia por conta)
 - **Payload:**
 ```json
 {
   "name": "João Cliente",
   "email": "joao@cliente.com",
   "password": "password123",
+  "password_confirmation": "password123",
   "phone": "11999999999"
 }
 ```
@@ -82,9 +83,10 @@ o dono é promovido automaticamente a `GESTOR_ESPACO`.
 ---
 
 ### `POST /api/v1/auth/login`
-Autentica o usuário e gera o Token Bearer.
+Autentica o usuário e gera o Token Bearer (válido por 30 dias).
+Após 5 falhas por conta há lockout de 5 min (`429`).
 
-- **Autenticação:** Pública
+- **Autenticação:** Pública (throttle `auth`)
 - **Payload:**
 ```json
 {
@@ -107,6 +109,67 @@ Autentica o usuário e gera o Token Bearer.
   "token_type": "Bearer"
 }
 ```
+
+---
+
+### `POST /api/v1/auth/forgot-password`
+Solicita o link de recuperação. Resposta **sempre idêntica** (não revela
+se o e-mail existe). O e-mail contém o link
+`{FRONTEND_URL}/redefinir-senha?token=…&email=…` (expira em 60 min, uso único).
+
+- **Autenticação:** Pública (throttle `forgot`: 3/min por IP)
+- **Payload:** `{ "email": "joao@arena.com" }`
+- **Resposta (`200 OK`):** `{ "message": "Se o e-mail estiver cadastrado, você receberá o link em instantes." }`
+
+---
+
+### `POST /api/v1/auth/reset-password`
+Redefine a senha com o token do e-mail. Revoga **todas** as sessões antigas
+e já devolve uma sessão nova (login automático).
+
+- **Autenticação:** Pública (throttle `auth`)
+- **Payload:**
+```json
+{
+  "token": "…",
+  "email": "joao@arena.com",
+  "password": "novasenha123",
+  "password_confirmation": "novasenha123"
+}
+```
+
+**Exemplo de Resposta (`200 OK`):**
+```json
+{
+  "message": "Senha redefinida com sucesso.",
+  "user": { "id": 1, "name": "João", "email": "joao@arena.com", "role": "CLIENTE" },
+  "access_token": "3|xYz…",
+  "token_type": "Bearer"
+}
+```
+
+---
+
+### `PUT /api/v1/auth/password`
+Altera a senha do usuário logado. Mantém o token atual, revoga os demais.
+
+- **Autenticação:** Requer Token Bearer
+- **Payload:**
+```json
+{
+  "current_password": "atual1234",
+  "password": "novasenha456",
+  "password_confirmation": "novasenha456"
+}
+```
+
+---
+
+### `POST /api/v1/auth/logout-all`
+Encerra **todas** as sessões do usuário (todos os dispositivos).
+
+- **Autenticação:** Requer Token Bearer
+- **Payload:** Nenhum
 
 ---
 

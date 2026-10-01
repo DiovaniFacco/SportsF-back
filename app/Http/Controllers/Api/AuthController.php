@@ -7,10 +7,11 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rules\Password as PasswordRule;
 use Illuminate\Validation\ValidationException;
-
-use Illuminate\Support\Facades\Http;
 
 class AuthController extends Controller
 {
@@ -19,7 +20,7 @@ class AuthController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
-            'password' => ['required', 'string', 'min:8'],
+            'password' => ['required', 'string', 'confirmed', PasswordRule::min(8)],
             'phone' => ['nullable', 'string', 'max:20'],
         ]);
 
@@ -48,18 +49,39 @@ class AuthController extends Controller
             'password' => ['required', 'string'],
         ]);
 
+        $email = strtolower(trim($validated['email']));
+        // Lockout por conta: cobre força-bruta distribuída contra um único e-mail
+        // (o throttle por IP sozinho não segura vários IPs atacando a mesma conta).
+        $lockoutKey = 'login:'.$email.'|'.$request->ip();
+
+        if (RateLimiter::tooManyAttempts($lockoutKey, 5)) {
+            $seconds = RateLimiter::availableIn($lockoutKey);
+
+            return response()->json([
+                'message' => "Muitas tentativas. Tente novamente em {$seconds} segundos.",
+            ], 429);
+        }
+
         $user = User::where('email', $validated['email'])->first();
 
         if (!$user || !Hash::check($validated['password'], $user->password)) {
+            RateLimiter::hit($lockoutKey, 300);
+
             throw ValidationException::withMessages([
                 'email' => ['As credenciais fornecidas estão incorretas.'],
             ]);
         }
 
+        RateLimiter::clear($lockoutKey);
+
         if ($user->role === User::ROLE_CLIENTE && $user->venues()->exists()) {
             $user->role = User::ROLE_GESTOR;
             $user->save();
         }
+
+        // Cleanup sem scheduler: apaga tokens expirados do próprio usuário
+        // a cada login (a Railway não roda cron junto do Apache).
+        $user->tokens()->where('expires_at', '<', now())->delete();
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
@@ -71,74 +93,99 @@ class AuthController extends Controller
         ]);
     }
 
-    public function googleAuth(Request $request): JsonResponse
+    /**
+     * Sempre responde 200 com mensagem genérica (anti-enumeração):
+     * não revela se o e-mail existe na base.
+     */
+    public function forgotPassword(Request $request): JsonResponse
     {
-        $validated = $request->validate([
-            'id_token' => ['nullable', 'string'],
-            'access_token' => ['nullable', 'string'],
-            'email' => ['nullable', 'email'],
-            'name' => ['nullable', 'string', 'max:255'],
-            'google_id' => ['nullable', 'string'],
-            'avatar' => ['nullable', 'string'],
+        $request->validate([
+            'email' => ['required', 'email'],
         ]);
 
-        $googleEmail = null;
-        $googleName = null;
+        $user = User::where('email', $request->input('email'))->first();
 
-        // 1. Try verifying id_token if provided
-        if (!empty($validated['id_token'])) {
-            $response = Http::get('https://oauth2.googleapis.com/tokeninfo', [
-                'id_token' => $validated['id_token'],
-            ]);
-
-            if ($response->successful()) {
-                $googleData = $response->json();
-                $googleEmail = $googleData['email'] ?? null;
-                $googleName = $googleData['name'] ?? $googleEmail;
-            }
+        if ($user) {
+            Password::sendResetLink(['email' => $user->email]);
         }
-
-        // 2. Try verifying access_token if id_token failed or wasn't provided
-        if (!$googleEmail && !empty($validated['access_token'])) {
-            $response = Http::withToken($validated['access_token'])
-                ->get('https://www.googleapis.com/oauth2/v3/userinfo');
-
-            if ($response->successful()) {
-                $googleData = $response->json();
-                $googleEmail = $googleData['email'] ?? null;
-                $googleName = $googleData['name'] ?? $googleEmail;
-            }
-        }
-
-        if (!$googleEmail) {
-            return response()->json([
-                'message' => 'Token do Google inválido ou não foi possível verificar a autenticação.',
-            ], 401);
-        }
-
-        $user = User::where('email', $googleEmail)->first();
-
-        if (!$user) {
-            $user = User::create([
-                'name' => $googleName ?: 'Usuário Google',
-                'email' => $googleEmail,
-                'password' => Hash::make(\Illuminate\Support\Str::random(32)),
-                'role' => User::ROLE_CLIENTE,
-            ]);
-        }
-
-        if ($user->role === User::ROLE_CLIENTE && $user->venues()->exists()) {
-            $user->role = User::ROLE_GESTOR;
-            $user->save();
-        }
-
-        $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
-            'message' => 'Autenticação Google realizada com sucesso',
+            'message' => 'Se o e-mail estiver cadastrado, você receberá o link em instantes.',
+        ]);
+    }
+
+    public function resetPassword(Request $request): JsonResponse
+    {
+        $request->validate([
+            'token' => ['required', 'string'],
+            'email' => ['required', 'email'],
+            'password' => ['required', 'string', 'confirmed', PasswordRule::min(8)],
+        ]);
+
+        $newToken = null;
+        $status = Password::reset(
+            $request->only('email', 'password', 'password_confirmation', 'token'),
+            function (User $user, string $password) use (&$newToken) {
+                $user->forceFill([
+                    'password' => Hash::make($password),
+                    'remember_token' => Str::random(60),
+                ])->save();
+
+                // Reset bem-sucedido revoga TODAS as sessões antigas e já
+                // devolve uma sessão nova (usuário entra logado direto).
+                $user->tokens()->delete();
+                $newToken = $user->createToken('auth_token')->plainTextToken;
+            }
+        );
+
+        if ($status !== Password::PASSWORD_RESET) {
+            return response()->json([
+                'message' => $status === Password::INVALID_TOKEN
+                    ? 'Link inválido ou expirado. Peça um novo link de recuperação.'
+                    : 'Não foi possível redefinir a senha. Verifique os dados e tente novamente.',
+            ], 422);
+        }
+
+        /** @var User $user */
+        $user = User::where('email', $request->input('email'))->first();
+
+        return response()->json([
+            'message' => 'Senha redefinida com sucesso.',
             'user' => $user,
-            'access_token' => $token,
+            'access_token' => $newToken,
             'token_type' => 'Bearer',
+        ]);
+    }
+
+    /**
+     * Troca de senha para usuário logado. Mantém só o token atual,
+     * revoga os demais (sessões em outros dispositivos).
+     */
+    public function changePassword(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'current_password' => ['required', 'string'],
+            'password' => ['required', 'string', 'confirmed', PasswordRule::min(8)],
+        ]);
+
+        /** @var User $user */
+        $user = $request->user();
+
+        if (!Hash::check($validated['current_password'], $user->password)) {
+            return response()->json([
+                'message' => 'A senha atual está incorreta.',
+            ], 422);
+        }
+
+        $user->forceFill([
+            'password' => Hash::make($validated['password']),
+        ])->save();
+
+        $currentTokenId = $request->user()->currentAccessToken()?->id;
+        $user->tokens()->when($currentTokenId, fn ($q) => $q->where('id', '!=', $currentTokenId))->delete();
+
+        return response()->json([
+            'message' => 'Senha alterada com sucesso.',
         ]);
     }
 
@@ -178,6 +225,18 @@ class AuthController extends Controller
 
         return response()->json([
             'message' => 'Logout realizado com sucesso',
+        ]);
+    }
+
+    /**
+     * Revoga TODOS os tokens do usuário (sair de todos os dispositivos).
+     */
+    public function logoutAll(Request $request): JsonResponse
+    {
+        $request->user()->tokens()->delete();
+
+        return response()->json([
+            'message' => 'Todas as sessões foram encerradas.',
         ]);
     }
 
