@@ -21,7 +21,6 @@ class Court extends Model
         'type',
         'hourly_rate',
         'surface',
-        'capacity',
         'is_covered',
         'image_url',
         'min_notice_hours',
