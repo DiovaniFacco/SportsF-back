@@ -1,6 +1,8 @@
 <?php
 
+use App\Http\Controllers\Api\AccessTrackingController;
 use App\Http\Controllers\Api\AmenityController;
+use App\Http\Controllers\Api\AnalyticsController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\CourtBlockoutController;
@@ -38,6 +40,10 @@ Route::prefix('v1')->group(function () {
     Route::get('/sports', [SportController::class, 'index']);
     Route::get('/amenities', [AmenityController::class, 'index']);
     Route::get('/cities', [VenueController::class, 'cities']);
+
+    // Analytics de acesso — coleta pública (token opcional identifica o usuário logado).
+    Route::post('/analytics/track', [AccessTrackingController::class, 'store'])
+        ->middleware('throttle:analytics');
 
     // Public Venues, Courts & Reviews Routes
     Route::get('/venues', [VenueController::class, 'index']);
@@ -128,5 +134,11 @@ Route::prefix('v1')->group(function () {
         Route::get('/bookings/{booking}', [BookingController::class, 'show']);
         Route::patch('/bookings/{booking}/cancel', [BookingController::class, 'cancel']);
         Route::patch('/bookings/{booking}/payment', [BookingController::class, 'updatePayment']);
+
+        // Métricas de acesso (tráfego) — Gestor (seus complexos) e Admin (global).
+        Route::middleware(CheckRole::class . ':' . User::ROLE_GESTOR . ',' . User::ROLE_ADMIN)->group(function () {
+            Route::get('/analytics/overview', [AnalyticsController::class, 'overview']);
+            Route::get('/venues/{venue}/analytics', [AnalyticsController::class, 'venueOverview']);
+        });
     });
 });

@@ -15,6 +15,7 @@
 7. [Precificação Flexível (Horários Nobres & Datas Especiais)](#7-precificação-flexível-horários-nobres--datas-especiais)
 8. [Bloqueios de Agenda (Manutenção / Eventos)](#8-bloqueios-de-agenda-manutenção--eventos)
 9. [Horários Fixos (Aulas / Mensalistas)](#9-horários-fixos-aulas--mensalistas)
+10. [Métricas de Acesso (Analytics)](#10-métricas-de-acesso-analytics)
 
 ---
 
@@ -705,3 +706,103 @@ Faturamento como qualquer reserva, sem remover a série:
 - A resposta inclui `booking.court_fixed_schedule_id` e `booking.fixed_schedule`;
   `GET /bookings` também expõe o vínculo.
 
+
+---
+
+## 10. Métricas de Acesso (Analytics)
+
+Coleta e agregação de tráfego/audiência do app. O objetivo principal é medir
+**quantos acessam sem estar logados (anônimos) vs logados**, quais telas são
+mais vistas e por qual plataforma (web/Android/iOS).
+
+- A tabela `access_events` guarda cada abertura do app (`app_open`) e cada
+  visualização de tela (`page_view`).
+- `user_id` **NULL** = visitante não logado; preenchido = usuário logado
+  (com `user_role` do momento do acesso).
+- `visitor_id` = identificador anônimo persistido no dispositivo.
+- `session_id` = agrupa as telas de uma mesma sessão (abertura do app).
+- `ip` = IP completo.
+
+---
+
+### `POST /api/v1/analytics/track`
+Registra um evento de acesso. **Endpoint público** — o token Bearer é
+**opcional**: quando presente e válido, o acesso é atribuído ao usuário
+logado; sem token, é contabilizado como anônimo.
+
+- **Autenticação:** Pública (throttle `analytics`: 60/min por IP)
+- **Payload:**
+```json
+{
+  "event_type": "page_view",
+  "screen": "complexo",
+  "visitor_id": "0f8c…",
+  "session_id": "9a3b…",
+  "venue_id": 1,
+  "platform": "web",
+  "referrer": "https://www.google.com/",
+  "metadata": {}
+}
+```
+*(`event_type`: `app_open` | `page_view`; `screen`: identificador da tela.)*
+
+**Resposta (`201 Created`):** `{ "status": "ok" }`
+
+---
+
+### `GET /api/v1/analytics/overview`
+Visão geral de acessos no período.
+- **ADMIN:** todos os complexos (visão global).
+- **GESTOR:** apenas os complexos que administra (`scope: "managed"`).
+
+- **Autenticação:** Requer Token Bearer (`GESTOR_ESPACO` ou `ADMIN`)
+- **Query Params:** `?period=today|week|month|30d` (padrão `today`)
+
+**Exemplo de Resposta (`200 OK`):**
+```json
+{
+  "period": "today",
+  "scope": "global",
+  "range": { "from": "2026-10-15T00:00:00-03:00", "to": "2026-10-15T23:59:59-03:00" },
+  "totals": {
+    "events": 128,
+    "sessions": 42,
+    "unique_visitors": 57,
+    "anonymous_visitors": 50,
+    "logged_visitors": 7,
+    "anonymous_events": 110,
+    "logged_events": 18,
+    "anonymous_percentage": 88,
+    "logged_percentage": 12
+  },
+  "screens": [ { "screen": "complexo", "views": 60 } ],
+  "platforms": [ { "platform": "web", "events": 100 } ],
+  "daily": [ { "date": "2026-10-15", "anonymous": 50, "logged": 7, "total": 57 } ],
+  "venues": [ { "venue_id": 1, "name": "Arena Central", "anonymous": 30, "logged": 4, "visitors": 34, "events": 70 } ],
+  "recent": [
+    {
+      "id": 3,
+      "user_id": null,
+      "user_name": null,
+      "user_role": null,
+      "anonymous": true,
+      "venue_id": 1,
+      "venue_name": "Arena Central",
+      "screen": "complexo",
+      "event_type": "page_view",
+      "platform": "web",
+      "ip": "203.0.113.10",
+      "created_at": "2026-10-15T10:16:05-03:00"
+    }
+  ]
+}
+```
+
+---
+
+### `GET /api/v1/venues/{venue_id}/analytics`
+Métricas de acesso de **um complexo específico** (mesma estrutura de
+`/analytics/overview`, com `scope: "venue"`).
+
+- **Autenticação:** Requer Token Bearer (Proprietário do complexo ou Admin)
+- **Query Params:** `?period=today|week|month|30d`

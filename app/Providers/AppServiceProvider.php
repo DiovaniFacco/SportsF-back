@@ -36,5 +36,12 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('forgot', function (Request $request) {
             return Limit::perMinute(3)->by($request->ip());
         });
+
+        // Coleta de acessos (analytics): endpoint público com token opcional.
+        // Limite generoso (uma página normal dispara poucos eventos) mas suficiente
+        // para conter abuso/scraping do endpoint de escrita.
+        RateLimiter::for('analytics', function (Request $request) {
+            return Limit::perMinute(60)->by($request->ip());
+        });
     }
 }
