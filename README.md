@@ -167,7 +167,7 @@ Access is layered: public → authenticated → role-restricted (`ADMIN` / `GEST
 Spins up PHP-FPM, Nginx, PostgreSQL and Mailpit.
 
 ```bash
-git clone https://github.com/DiovaniFacco/back.git
+git clone https://github.com/DiovaniFacco/SportsF-back.git
 cd back
 
 cp .env.example .env
@@ -284,4 +284,4 @@ Set `APP_DEBUG=false`, a strong `APP_KEY`, the database credentials and the mail
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-diovani--facco-0A66C2?logo=linkedin&logoColor=white)](https://www.linkedin.com/in/diovani-facco-3a247b11a/)
 [![Email](https://img.shields.io/badge/Email-diovanifacco@gmail.com-EA4335?logo=gmail&logoColor=white)](mailto:diovanifacco@gmail.com)
 
-> Frontend repository: **[DiovaniFacco/front](https://github.com/DiovaniFacco/front)** — Expo / React Native client for this API.
+> Frontend repository: **[DiovaniFacco/SportsF-front](https://github.com/DiovaniFacco/SportsF-front)** — Expo / React Native client for this API.
