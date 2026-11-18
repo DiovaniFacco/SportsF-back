@@ -177,6 +177,16 @@ class BookingSlotService
                     'is_fixed' => $isFixed,
                     'fixed_schedule_id' => $activeFixed?->id,
                     'fixed_customer_name' => $activeFixed?->customer_name,
+                    // Horário REAL da série fixa (pode diferir da grade de exibição
+                    // quando a duração do fixo não é múltiplo do intervalo — ex:
+                    // fixo 19:30–21:00 numa grade de 60min marca 19:00–20:00 e
+                    // 20:00–21:00). O front exibe o intervalo verdadeiro.
+                    'fixed_start_time' => $isFixed && $activeFixed?->start_time
+                        ? substr((string) $activeFixed->start_time, 0, 5)
+                        : null,
+                    'fixed_end_time' => $isFixed && $activeFixed?->end_time
+                        ? substr((string) $activeFixed->end_time, 0, 5)
+                        : null,
                 ];
 
                 $currentStart->addMinutes($slotDuration);

@@ -23,6 +23,16 @@ class VenueCoverUploadController extends Controller
 
         $file = $request->file('image');
 
+        // Rejeita fotos muito escuras (ex: quadra externa à noite) — o
+        // relatório de UI/UX apontou que capas escuras degradam o card.
+        // Retorna null em caso de falha na decodificação (pass-through).
+        $brightness = $this->meanBrightness($file->getRealPath());
+        if ($brightness !== null && $brightness < 40) {
+            return response()->json([
+                'message' => 'A foto está muito escura. Envie uma imagem com melhor iluminação para a capa ficar bem visível.',
+            ], 422);
+        }
+
         // Tenta Cloudinary primeiro (prod). Se não estiver configurado,
         // faz fallback para disco public local (dev) em vez de estourar 500.
         if ($this->isCloudinaryConfigured()) {
@@ -85,6 +95,67 @@ class VenueCoverUploadController extends Controller
                 'message' => 'Erro ao processar upload da imagem.',
                 ...(config('app.debug') ? ['error' => $e->getMessage()] : []),
             ], 500);
+        }
+    }
+
+    /**
+     * Luminância média da imagem (0–255) amostrada em 64×64 via GD.
+     * Usa Rec.709 (0.2126R + 0.7152G + 0.0722B). Retorna null se a
+     * imagem não puder ser decodificada (validação de brilho é best-effort,
+     * não deve bloquear o upload por erro interno).
+     */
+    private function meanBrightness(string $path): ?float
+    {
+        try {
+            $data = @file_get_contents($path);
+            if ($data === false) {
+                return null;
+            }
+
+            $src = @imagecreatefromstring($data);
+            if ($src === false) {
+                return null;
+            }
+
+            $srcW = imagesx($src);
+            $srcH = imagesy($src);
+            if ($srcW < 1 || $srcH < 1) {
+                imagedestroy($src);
+
+                return null;
+            }
+
+            // Amostragem em 64×64 para não processar a imagem inteira.
+            $sample = imagecreatetruecolor(64, 64);
+            if ($sample === false) {
+                imagedestroy($src);
+
+                return null;
+            }
+
+            imagecopyresampled($sample, $src, 0, 0, 0, 0, 64, 64, $srcW, $srcH);
+
+            $total = 0.0;
+            for ($y = 0; $y < 64; $y++) {
+                for ($x = 0; $x < 64; $x++) {
+                    $rgb = imagecolorat($sample, $x, $y);
+                    $r = ($rgb >> 16) & 0xFF;
+                    $g = ($rgb >> 8) & 0xFF;
+                    $b = $rgb & 0xFF;
+                    $total += 0.2126 * $r + 0.7152 * $g + 0.0722 * $b;
+                }
+            }
+
+            imagedestroy($sample);
+            imagedestroy($src);
+
+            return $total / (64 * 64);
+        } catch (\Throwable $e) {
+            Log::warning('Validação de brilho da capa falhou (pass-through).', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return null;
         }
     }
 
